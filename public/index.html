@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>POS Login</title>
+<style>
+  :root {
+    --bg: #14181a;
+    --panel: #1d2326;
+    --card: #232a2d;
+    --border: #2a3033;
+    --accent: #2d8f5f;
+    --accent-dark: #1f6e47;
+    --danger: #c4452b;
+    --muted: #8a9296;
+    --font-display: 'Courier New', monospace;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    font-family: var(--font-body);
+    color: #eee;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .login-wrap { width: 100%; max-width: 380px; }
+
+  .logo {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  .logo-icon { font-size: 48px; display: block; margin-bottom: 8px; }
+  .logo h1 {
+    font-family: var(--font-display);
+    font-size: 22px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin: 0 0 4px;
+  }
+  .logo p { font-size: 13px; color: var(--muted); margin: 0; }
+
+  /* ---- Tabs ---- */
+  .tabs {
+    display: flex;
+    background: var(--card);
+    border-radius: 10px;
+    padding: 4px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+  }
+  .tab {
+    flex: 1; padding: 9px;
+    text-align: center; border-radius: 7px;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer; color: var(--muted);
+    transition: all 0.15s;
+  }
+  .tab.active { background: var(--accent); color: #fff; }
+
+  /* ---- Forms ---- */
+  .form { display: none; }
+  .form.active { display: block; }
+
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block; font-size: 12px;
+    color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.5px; margin-bottom: 6px;
+  }
+  .field input {
+    width: 100%; padding: 12px 14px;
+    border-radius: 8px; border: 1px solid var(--border);
+    background: var(--card); color: #eee;
+    font-size: 15px; font-family: var(--font-body);
+    outline: none; transition: border-color 0.15s;
+  }
+  .field input:focus { border-color: var(--accent); }
+
+  .btn-login {
+    width: 100%; padding: 14px;
+    border-radius: 8px; border: none;
+    background: var(--accent); color: #fff;
+    font-size: 15px; font-weight: 700;
+    cursor: pointer; font-family: var(--font-body);
+    margin-top: 6px; transition: background 0.15s;
+  }
+  .btn-login:hover { background: var(--accent-dark); }
+  .btn-login:disabled { background: #444; cursor: not-allowed; }
+
+  .error-msg {
+    background: #3a1f1f; border: 1px solid var(--danger);
+    color: #eb5757; border-radius: 8px;
+    padding: 10px 14px; font-size: 13px;
+    margin-bottom: 14px; display: none;
+  }
+  .error-msg.show { display: block; }
+
+  /* ---- PIN pad ---- */
+  .pin-display {
+    display: flex; gap: 10px; justify-content: center;
+    margin-bottom: 20px;
+  }
+  .pin-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: transparent;
+    transition: background 0.1s;
+  }
+  .pin-dot.filled { background: var(--accent); border-color: var(--accent); }
+
+  .pin-pad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .pin-key {
+    padding: 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: #eee;
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    text-align: center;
+    font-family: var(--font-display);
+    transition: background 0.1s, transform 0.1s;
+    user-select: none;
+  }
+  .pin-key:active { background: var(--accent); transform: scale(0.95); }
+  .pin-key.clear { font-size: 14px; color: var(--muted); }
+  .pin-key.del { font-size: 18px; }
+
+  .version { text-align: center; font-size: 11px; color: #333; margin-top: 24px; }
+</style>
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="logo">
+    <span class="logo-icon">🍽️</span>
+    <h1>Restaurant POS</h1>
+    <p>Staff Login</p>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('email')">📧 Email</div>
+    <div class="tab" onclick="switchTab('pin')">🔢 PIN</div>
+  </div>
+
+  <!-- Error -->
+  <div class="error-msg" id="error-msg"></div>
+
+  <!-- Email/Password Form -->
+  <div class="form active" id="form-email">
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="email" placeholder="your@email.com" autocomplete="email" />
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+    <button class="btn-login" id="email-btn" onclick="loginEmail()">Login</button>
+  </div>
+
+  <!-- PIN Form -->
+  <div class="form" id="form-pin">
+    <div class="pin-display" id="pin-display">
+      <div class="pin-dot" id="dot-0"></div>
+      <div class="pin-dot" id="dot-1"></div>
+      <div class="pin-dot" id="dot-2"></div>
+      <div class="pin-dot" id="dot-3"></div>
+    </div>
+
+    <div class="pin-pad">
+      <div class="pin-key" onclick="pinKey('1')">1</div>
+      <div class="pin-key" onclick="pinKey('2')">2</div>
+      <div class="pin-key" onclick="pinKey('3')">3</div>
+      <div class="pin-key" onclick="pinKey('4')">4</div>
+      <div class="pin-key" onclick="pinKey('5')">5</div>
+      <div class="pin-key" onclick="pinKey('6')">6</div>
+      <div class="pin-key" onclick="pinKey('7')">7</div>
+      <div class="pin-key" onclick="pinKey('8')">8</div>
+      <div class="pin-key" onclick="pinKey('9')">9</div>
+      <div class="pin-key clear" onclick="pinClear()">Clear</div>
+      <div class="pin-key" onclick="pinKey('0')">0</div>
+      <div class="pin-key del" onclick="pinDelete()">⌫</div>
+    </div>
+  </div>
+
+  <div class="version">Restaurant POS v1.0</div>
+</div>
+
+<script>
+  const API_BASE = "http://localhost:3000";
+
+  // If already logged in, redirect
+  const existingToken = localStorage.getItem("pos_token");
+  const existingRole = localStorage.getItem("pos_role");
+  if (existingToken && existingRole) {
+    redirectByRole(existingRole);
+  }
+
+  let pinValue = "";
+
+  function switchTab(tab) {
+    document.querySelectorAll(".tab").forEach((t, i) => {
+      t.classList.toggle("active", (i === 0 && tab === "email") || (i === 1 && tab === "pin"));
+    });
+    document.getElementById("form-email").classList.toggle("active", tab === "email");
+    document.getElementById("form-pin").classList.toggle("active", tab === "pin");
+    clearError();
+  }
+
+  // ---- Email Login ----
+  document.getElementById("password").addEventListener("keydown", e => {
+    if (e.key === "Enter") loginEmail();
+  });
+
+  async function loginEmail() {
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    if (!email || !password) { showError("Please enter your email and password."); return; }
+
+    const btn = document.getElementById("email-btn");
+    btn.disabled = true;
+    btn.textContent = "Logging in…";
+
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Login failed");
+      handleLoginSuccess(data);
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Login";
+    }
+  }
+
+  // ---- PIN Login ----
+  function pinKey(digit) {
+    if (pinValue.length >= 4) return;
+    pinValue += digit;
+    updatePinDisplay();
+    if (pinValue.length === 4) {
+      setTimeout(() => loginPin(), 200);
+    }
+  }
+
+  function pinDelete() {
+    pinValue = pinValue.slice(0, -1);
+    updatePinDisplay();
+  }
+
+  function pinClear() {
+    pinValue = "";
+    updatePinDisplay();
+  }
+
+  function updatePinDisplay() {
+    for (let i = 0; i < 4; i++) {
+      document.getElementById(`dot-${i}`).classList.toggle("filled", i < pinValue.length);
+    }
+  }
+
+  async function loginPin() {
+    try {
+      const res = await fetch(`${API_BASE}/auth/login/pin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: pinValue })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Invalid PIN");
+      handleLoginSuccess(data);
+    } catch (err) {
+      showError(err.message);
+      pinClear();
+    }
+  }
+
+  // ---- Handle success ----
+  function handleLoginSuccess(data) {
+    localStorage.setItem("pos_token", data.token);
+    localStorage.setItem("pos_role", data.user.role);
+    localStorage.setItem("pos_user", JSON.stringify(data.user));
+    redirectByRole(data.user.role);
+  }
+
+  function redirectByRole(role) {
+    const routes = {
+      ADMIN: "/Projects%202026/restaurant-pos/public/dashboard.html",
+      MANAGER: "/Projects%202026/restaurant-pos/public/dashboard.html",
+      CASHIER: "/Projects%202026/restaurant-pos/public/cashier-billing.html",
+      WAITER: "/Projects%202026/restaurant-pos/public/waiter.html",
+    };
+    window.location.href = routes[role] || "/waiter.html";
+  }
+
+  // ---- Error ----
+  function showError(msg) {
+    const el = document.getElementById("error-msg");
+    el.textContent = msg;
+    el.classList.add("show");
+  }
+
+  function clearError() {
+    document.getElementById("error-msg").classList.remove("show");
+  }
+</script>
+</body>
+</html>

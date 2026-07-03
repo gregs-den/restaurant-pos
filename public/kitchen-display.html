@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Kitchen Display</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+  :root {
+    --bg: #14181a;
+    --panel: #1d2326;
+    --ticket: #f4efe4;
+    --ticket-edge: #d8cfb8;
+    --ink: #1c1a16;
+    --accent: #ff6a3d;
+    --ok: #4caf6e;
+    --warn: #e0a72e;
+    --muted: #8a9296;
+    --font-display: 'Courier New', monospace;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    font-family: var(--font-body);
+    color: #eee;
+    min-height: 100vh;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    background: var(--panel);
+    border-bottom: 3px solid var(--accent);
+  }
+  header h1 {
+    font-family: var(--font-display);
+    letter-spacing: 2px;
+    font-size: 20px;
+    margin: 0;
+    text-transform: uppercase;
+  }
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #555;
+  }
+  .dot.live { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+
+  #board {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 18px;
+    padding: 24px;
+  }
+
+  .empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: var(--muted);
+    padding: 80px 20px;
+    font-size: 15px;
+  }
+
+  .ticket {
+    background: var(--ticket);
+    color: var(--ink);
+    border-radius: 2px;
+    box-shadow: 0 6px 0 var(--ticket-edge), 0 8px 16px rgba(0,0,0,0.4);
+    padding: 16px 16px 14px;
+    position: relative;
+    animation: drop 0.25s ease-out;
+  }
+  @keyframes drop {
+    from { transform: translateY(-12px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  .ticket::before {
+    content: "";
+    position: absolute;
+    top: -6px; left: 14px; right: 14px;
+    height: 6px;
+    background: repeating-linear-gradient(90deg, var(--bg) 0 8px, transparent 8px 14px);
+  }
+  .ticket-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px dashed var(--ticket-edge);
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+  }
+  .ticket-table {
+    font-family: var(--font-display);
+    font-weight: bold;
+    font-size: 18px;
+  }
+  .ticket-time {
+    font-size: 11px;
+    color: #6b6356;
+  }
+  .ticket-type {
+    display: inline-block;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 2px;
+    background: var(--ink);
+    color: var(--ticket);
+    margin-bottom: 8px;
+  }
+  .item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.07);
+    gap: 8px;
+  }
+  .item-row:last-of-type { border-bottom: none; }
+  .item-name {
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .item-qty {
+    font-family: var(--font-display);
+    font-weight: bold;
+    color: var(--accent);
+    min-width: 24px;
+  }
+  .item-note {
+    font-size: 11px;
+    color: #6b6356;
+    font-style: italic;
+    margin-top: 2px;
+  }
+  .item-status-row { display: flex; align-items: center; gap: 6px; }
+  select.status-select {
+    font-size: 11px;
+    border: 1px solid var(--ticket-edge);
+    background: #fff;
+    border-radius: 3px;
+    padding: 2px 4px;
+    font-family: var(--font-body);
+  }
+  .status-PENDING { color: var(--warn); }
+  .status-COOKING { color: #1c7fd6; }
+  .status-SERVED { color: var(--ok); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🔥 Kitchen Display</h1>
+  <div class="status">
+    <span class="dot" id="dot"></span>
+    <span id="status-text">connecting…</span>
+    <button onclick="logout()" style="padding:6px 12px;border-radius:5px;border:none;background:#2a3336;color:#eee;cursor:pointer;font-size:12px">Logout</button>
+  </div>
+</header>
+
+<div id="board">
+  <div class="empty-state">Waiting for orders…</div>
+</div>
+
+<script>
+
+function logout() {
+  localStorage.removeItem("pos_token");
+  localStorage.removeItem("pos_role");
+  localStorage.removeItem("pos_user");
+  window.location.href = "/Projects%202026/restaurant-pos/public/index.html";
+}
+
+  // ---- CONFIG: change if your server runs elsewhere ----
+  const API_BASE = "http://localhost:3000";
+  const TOKEN = localStorage.getItem("pos_token");
+  if (!TOKEN) window.location.href = "/";
+
+  const board = document.getElementById("board");
+  const dot = document.getElementById("dot");
+  const statusText = document.getElementById("status-text");
+
+  const socket = io(API_BASE);
+
+  socket.on("connect", () => {
+    dot.classList.add("live");
+    statusText.textContent = "live";
+    socket.emit("join-kitchen");
+    loadOrders();
+  });
+
+  socket.on("disconnect", () => {
+    dot.classList.remove("live");
+    statusText.textContent = "disconnected";
+  });
+
+  socket.on("new-order", () => loadOrders());
+  socket.on("new-order-item", () => loadOrders());
+  socket.on("order-item-status-changed", () => loadOrders());
+  socket.on("order-item-updated", () => loadOrders());
+
+  async function loadOrders() {
+    try {
+      const res = await fetch(`${API_BASE}/kitchen/orders`, {
+        headers: { Authorization: `Bearer ${TOKEN}` }
+      });
+      const orders = await res.json();
+      renderOrders(orders);
+    } catch (err) {
+      console.error("Failed to load orders", err);
+    }
+  }
+
+  function renderOrders(orders) {
+    if (!orders || orders.length === 0) {
+      board.innerHTML = `<div class="empty-state">No active orders. Kitchen is clear.</div>`;
+      return;
+    }
+
+    board.innerHTML = orders.map(order => {
+      const tableLabel = order.table ? `Table ${order.table.tableNumber}` : order.orderType.replace("_", " ");
+      const time = new Date(order.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+      const items = order.orderItems.map(item => `
+        <div class="item-row">
+          <div>
+            <div><span class="item-qty">${item.quantity}×</span> <span class="item-name">${escapeHtml(item.menuItem.name)}</span></div>
+            ${item.notes ? `<div class="item-note">"${escapeHtml(item.notes)}"</div>` : ""}
+          </div>
+          <div class="item-status-row">
+            <select class="status-select status-${item.status}" data-item-id="${item.id}">
+              <option value="PENDING" ${item.status === "PENDING" ? "selected" : ""}>Pending</option>
+              <option value="COOKING" ${item.status === "COOKING" ? "selected" : ""}>Cooking</option>
+              <option value="SERVED" ${item.status === "SERVED" ? "selected" : ""}>Served</option>
+            </select>
+          </div>
+        </div>
+      `).join("");
+
+      return `
+        <div class="ticket">
+          <span class="ticket-type">${escapeHtml(order.orderType.replace("_", " "))}</span>
+          <div class="ticket-head">
+            <span class="ticket-table">${escapeHtml(tableLabel)}</span>
+            <span class="ticket-time">${time}</span>
+          </div>
+          ${items}
+        </div>
+      `;
+    }).join("");
+
+    document.querySelectorAll(".status-select").forEach(sel => {
+      sel.addEventListener("change", async (e) => {
+        const itemId = e.target.getAttribute("data-item-id");
+        const newStatus = e.target.value;
+        await fetch(`${API_BASE}/order-items/${itemId}/status`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${TOKEN}`
+          },
+          body: JSON.stringify({ status: newStatus })
+        });
+      });
+    });
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+</script>
+
+</body>
+</html>

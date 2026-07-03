@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reservations</title>
+<style>
+  :root {
+    --bg: #14181a;
+    --panel: #1d2326;
+    --card: #232a2d;
+    --border: #2a3033;
+    --accent: #2d8f5f;
+    --accent-dark: #1f6e47;
+    --accent2: #ff6a3d;
+    --danger: #c4452b;
+    --warn: #e0a72e;
+    --muted: #8a9296;
+    --font-display: 'Courier New', monospace;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); font-family: var(--font-body); color: #eee; min-height: 100vh; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px; background: var(--panel);
+    border-bottom: 3px solid var(--accent); flex-wrap: wrap; gap: 10px;
+  }
+  header h1 { font-family: var(--font-display); letter-spacing: 2px; font-size: 18px; margin: 0; text-transform: uppercase; }
+  .header-right { display: flex; gap: 8px; }
+
+  /* ---- Date nav ---- */
+  .date-nav {
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    padding: 12px 24px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .date-nav-btns { display: flex; gap: 6px; align-items: center; }
+  .nav-arrow {
+    width: 32px; height: 32px; border-radius: 50%;
+    border: 1px solid var(--border); background: var(--card);
+    color: #eee; cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .nav-arrow:hover { background: var(--accent); border-color: var(--accent); }
+  .date-label { font-family: var(--font-display); font-size: 16px; min-width: 200px; text-align: center; }
+  .today-btn {
+    padding: 6px 14px; border-radius: 5px; border: 1px solid var(--border);
+    background: var(--card); color: var(--muted); font-size: 12px; cursor: pointer;
+  }
+  .today-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+  input[type="date"].date-pick {
+    padding: 6px 10px; border-radius: 5px; border: 1px solid var(--border);
+    background: var(--card); color: #eee; font-size: 13px;
+  }
+
+  /* ---- Stats bar ---- */
+  .stats-bar {
+    display: flex; gap: 16px; padding: 14px 24px;
+    background: #1a2022; border-bottom: 1px solid var(--border); flex-wrap: wrap;
+  }
+  .stat-chip { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 8px 14px; }
+  .stat-chip .num { font-family: var(--font-display); font-size: 18px; font-weight: bold; color: var(--accent); }
+  .stat-chip .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* ---- Main layout ---- */
+  .layout { display: grid; grid-template-columns: 1fr 340px; min-height: calc(100vh - 180px); }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+  /* ---- Reservation list ---- */
+  .res-list { padding: 20px 24px; overflow-y: auto; }
+  .timeline { position: relative; }
+
+  .time-slot { margin-bottom: 8px; }
+  .time-label { font-family: var(--font-display); font-size: 11px; color: var(--muted); margin-bottom: 6px; padding-left: 2px; }
+
+  .res-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 16px; margin-bottom: 8px;
+    border-left: 4px solid var(--accent); position: relative;
+  }
+  .res-card.PENDING { border-left-color: var(--warn); }
+  .res-card.CONFIRMED { border-left-color: var(--accent); }
+  .res-card.SEATED { border-left-color: #4a9edd; }
+  .res-card.CANCELLED { border-left-color: var(--danger); opacity: 0.5; }
+  .res-card.NO_SHOW { border-left-color: var(--muted); opacity: 0.5; }
+
+  .res-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+  .res-name { font-weight: 600; font-size: 15px; }
+  .res-time { font-family: var(--font-display); font-size: 13px; color: var(--accent); }
+  .res-meta { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .res-meta span { margin-right: 12px; }
+  .res-notes { font-size: 11px; color: var(--muted); font-style: italic; margin-bottom: 8px; }
+
+  .res-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .status-btn {
+    padding: 4px 10px; border-radius: 4px; border: none;
+    font-size: 11px; cursor: pointer; font-family: var(--font-body);
+  }
+  .btn-confirm { background: #1f3a2a; color: #6fcf97; }
+  .btn-confirm:hover { background: var(--accent); color: #fff; }
+  .btn-seat { background: #1f2a3a; color: #6fcfcf; }
+  .btn-seat:hover { background: #4a9edd; color: #fff; }
+  .btn-cancel { background: #3a1f1f; color: #eb5757; }
+  .btn-cancel:hover { background: var(--danger); color: #fff; }
+  .btn-noshow { background: #2a2a2a; color: var(--muted); }
+  .btn-edit { background: #2a3336; color: #eee; }
+  .btn-edit:hover { background: #333d41; }
+  .btn-delete { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+  .btn-delete:hover { background: var(--danger); color: #fff; }
+
+  .status-badge {
+    display: inline-block; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.5px; padding: 2px 8px; border-radius: 10px;
+  }
+  .badge-PENDING { background: #3a2a1f; color: #f2c978; }
+  .badge-CONFIRMED { background: #1f3a2a; color: #6fcf97; }
+  .badge-SEATED { background: #1f2a3a; color: #6fcfcf; }
+  .badge-CANCELLED { background: #3a1f1f; color: #eb5757; }
+  .badge-NO_SHOW { background: #2a2a2a; color: var(--muted); }
+
+  .empty-state { text-align: center; color: var(--muted); padding: 60px 20px; font-size: 14px; }
+
+  /* ---- Sidebar: upcoming & table availability ---- */
+  .sidebar {
+    background: var(--panel); border-left: 1px solid var(--border);
+    padding: 20px; overflow-y: auto;
+  }
+  .sidebar h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 0 0 14px; }
+  .upcoming-item {
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .upcoming-item:last-child { border-bottom: none; }
+  .upcoming-time { font-family: var(--font-display); color: var(--accent); font-size: 13px; }
+  .upcoming-name { font-weight: 600; margin: 2px 0; }
+  .upcoming-meta { color: var(--muted); }
+
+  .table-avail { margin-top: 24px; }
+  .table-chip-sm {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 5px; font-size: 11px;
+    margin: 3px; font-family: var(--font-display);
+  }
+  .chip-AVAILABLE { background: #1f3a2a; color: #6fcf97; }
+  .chip-OCCUPIED { background: #3a2a1f; color: #f2994a; }
+  .chip-RESERVED { background: #2a2a3a; color: #9b9ef7; }
+
+  /* ---- Buttons ---- */
+  .btn {
+    padding: 8px 16px; border-radius: 5px; border: none;
+    font-size: 13px; cursor: pointer; font-family: var(--font-body); font-weight: 500;
+  }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-accent:hover { background: var(--accent-dark); }
+  .btn-ghost { background: #2a3336; color: #eee; }
+  .btn-ghost:hover { background: #333d41; }
+
+  /* ---- Modal ---- */
+  .modal-bg {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 28px; width: 100%;
+    max-width: 460px; max-height: 90vh; overflow-y: auto;
+  }
+  .modal h3 { margin: 0 0 20px; font-size: 16px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 9px 10px; border-radius: 5px;
+    border: 1px solid var(--border); background: #1a2022; color: #eee;
+    font-size: 14px; font-family: var(--font-body);
+  }
+  .field textarea { resize: vertical; min-height: 60px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--accent-dark); color: #fff;
+    padding: 10px 20px; border-radius: 6px; font-size: 13px;
+    opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 200;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📅 Reservations</h1>
+  <div class="header-right">
+    <button class="btn btn-accent" onclick="openModal()">+ New Reservation</button>
+    <button class="btn btn-ghost" onclick="logout()">Logout</button>
+  </div>
+</header>
+
+<!-- Date navigation -->
+<div class="date-nav">
+  <div class="date-nav-btns">
+    <div class="nav-arrow" onclick="changeDate(-1)">←</div>
+    <div class="date-label" id="date-label"></div>
+    <div class="nav-arrow" onclick="changeDate(1)">→</div>
+  </div>
+  <div class="today-btn" onclick="goToday()">Today</div>
+  <input type="date" class="date-pick" id="date-pick" onchange="setDate(this.value)" />
+</div>
+
+<!-- Stats -->
+<div class="stats-bar" id="stats-bar">
+  <div class="stat-chip"><div class="num" id="stat-total">0</div><div class="lbl">Total</div></div>
+  <div class="stat-chip"><div class="num" id="stat-pending">0</div><div class="lbl">Pending</div></div>
+  <div class="stat-chip"><div class="num" id="stat-confirmed">0</div><div class="lbl">Confirmed</div></div>
+  <div class="stat-chip"><div class="num" id="stat-seated">0</div><div class="lbl">Seated</div></div>
+  <div class="stat-chip"><div class="num" id="stat-guests">0</div><div class="lbl">Total Guests</div></div>
+</div>
+
+<div class="layout">
+  <!-- Reservation list -->
+  <div class="res-list" id="res-list">
+    <div class="empty-state">Loading…</div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <h2>Upcoming Today</h2>
+    <div id="upcoming-list"><div style="color:var(--muted);font-size:13px">Loading…</div></div>
+
+    <div class="table-avail">
+      <h2>Table Status</h2>
+      <div id="table-chips"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Reservation Modal -->
+<div class="modal-bg" id="res-modal">
+  <div class="modal">
+    <h3 id="modal-title">New Reservation</h3>
+    <div class="field-row">
+      <div class="field">
+        <label>Guest Name</label>
+        <input type="text" id="r-name" placeholder="e.g. Juan dela Cruz" />
+      </div>
+      <div class="field">
+        <label>Phone</label>
+        <input type="tel" id="r-phone" placeholder="09XX-XXX-XXXX" />
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Date & Time</label>
+        <input type="datetime-local" id="r-datetime" />
+      </div>
+      <div class="field">
+        <label>Party Size</label>
+        <input type="number" id="r-size" placeholder="e.g. 4" min="1" />
+      </div>
+    </div>
+    <div class="field">
+      <label>Table (optional)</label>
+      <select id="r-table">
+        <option value="">— No specific table —</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="r-notes" placeholder="e.g. Birthday celebration, near window preferred"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-accent" onclick="saveReservation()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const API_BASE = "http://localhost:3000";
+  const TOKEN = localStorage.getItem("pos_token");
+  if (!TOKEN) window.location.href = "/";
+
+  let currentDate = new Date();
+  let reservations = [];
+  let tables = [];
+  let editingId = null;
+
+  function logout() {
+    localStorage.removeItem("pos_token");
+    localStorage.removeItem("pos_role");
+    localStorage.removeItem("pos_user");
+    window.location.href = "/Projects%202026/restaurant-pos/public/index.html";
+  }
+
+  async function api(path, options = {}) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN}`, ...(options.headers || {}) }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  }
+
+  // ---- Date navigation ----
+  function formatDate(d) { return d.toISOString().slice(0, 10); }
+
+  function updateDateLabel() {
+    const today = new Date();
+    const isToday = formatDate(currentDate) === formatDate(today);
+    const label = currentDate.toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+    document.getElementById("date-label").textContent = isToday ? `Today — ${label}` : label;
+    document.getElementById("date-pick").value = formatDate(currentDate);
+  }
+
+  function changeDate(delta) {
+    currentDate.setDate(currentDate.getDate() + delta);
+    updateDateLabel();
+    loadReservations();
+  }
+
+  function goToday() {
+    currentDate = new Date();
+    updateDateLabel();
+    loadReservations();
+  }
+
+  function setDate(val) {
+    currentDate = new Date(val + "T00:00:00");
+    updateDateLabel();
+    loadReservations();
+  }
+
+  // ---- Load data ----
+  async function loadReservations() {
+    try {
+      [reservations, tables] = await Promise.all([
+        api(`/reservations?date=${formatDate(currentDate)}`),
+        api("/tables"),
+      ]);
+      renderReservations();
+      renderStats();
+      renderSidebar();
+      populateTableSelect();
+    } catch (err) {
+      document.getElementById("res-list").innerHTML = `<div class="empty-state">Failed to load reservations.</div>`;
+    }
+  }
+
+  function renderStats() {
+    const active = reservations.filter(r => !["CANCELLED", "NO_SHOW"].includes(r.status));
+    document.getElementById("stat-total").textContent = active.length;
+    document.getElementById("stat-pending").textContent = reservations.filter(r => r.status === "PENDING").length;
+    document.getElementById("stat-confirmed").textContent = reservations.filter(r => r.status === "CONFIRMED").length;
+    document.getElementById("stat-seated").textContent = reservations.filter(r => r.status === "SEATED").length;
+    document.getElementById("stat-guests").textContent = active.reduce((s, r) => s + r.partySize, 0);
+  }
+
+  function renderReservations() {
+    const list = document.getElementById("res-list");
+    if (!reservations.length) {
+      list.innerHTML = `<div class="empty-state">No reservations for this day.<br>Click "+ New Reservation" to add one.</div>`;
+      return;
+    }
+
+    list.innerHTML = reservations.map(r => {
+      const time = new Date(r.reservedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const tableLabel = r.table ? `Table ${r.table.tableNumber}` : "No table assigned";
+
+      const actionBtns = [];
+      if (r.status === "PENDING") {
+        actionBtns.push(`<button class="status-btn btn-confirm" onclick="updateStatus('${r.id}', 'CONFIRMED')">✅ Confirm</button>`);
+        actionBtns.push(`<button class="status-btn btn-cancel" onclick="updateStatus('${r.id}', 'CANCELLED')">✕ Cancel</button>`);
+      }
+      if (r.status === "CONFIRMED") {
+        actionBtns.push(`<button class="status-btn btn-seat" onclick="updateStatus('${r.id}', 'SEATED')">🪑 Seat</button>`);
+        actionBtns.push(`<button class="status-btn btn-noshow" onclick="updateStatus('${r.id}', 'NO_SHOW')">No Show</button>`);
+        actionBtns.push(`<button class="status-btn btn-cancel" onclick="updateStatus('${r.id}', 'CANCELLED')">✕ Cancel</button>`);
+      }
+      actionBtns.push(`<button class="status-btn btn-edit" onclick="editReservation('${r.id}')">✏️ Edit</button>`);
+      actionBtns.push(`<button class="status-btn btn-delete" onclick="deleteReservation('${r.id}')">🗑️</button>`);
+
+      return `
+        <div class="res-card ${r.status}">
+          <div class="res-head">
+            <div>
+              <div class="res-name">${escapeHtml(r.guestName)}</div>
+              <div class="res-meta">
+                <span>🕐 ${time}</span>
+                <span>👥 ${r.partySize} guests</span>
+                <span>🪑 ${escapeHtml(tableLabel)}</span>
+                ${r.guestPhone ? `<span>📞 ${escapeHtml(r.guestPhone)}</span>` : ""}
+              </div>
+            </div>
+            <span class="status-badge badge-${r.status}">${r.status.replace("_", " ")}</span>
+          </div>
+          ${r.notes ? `<div class="res-notes">"${escapeHtml(r.notes)}"</div>` : ""}
+          <div class="res-actions">${actionBtns.join("")}</div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderSidebar() {
+    // Upcoming today
+    const now = new Date();
+    const upcoming = reservations
+      .filter(r => new Date(r.reservedAt) >= now && ["PENDING", "CONFIRMED"].includes(r.status))
+      .slice(0, 5);
+
+    const upcomingEl = document.getElementById("upcoming-list");
+    if (!upcoming.length) {
+      upcomingEl.innerHTML = `<div style="color:var(--muted);font-size:13px">No upcoming reservations.</div>`;
+    } else {
+      upcomingEl.innerHTML = upcoming.map(r => {
+        const time = new Date(r.reservedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const mins = Math.round((new Date(r.reservedAt) - now) / 60000);
+        const eta = mins < 60 ? `in ${mins}m` : `in ${Math.round(mins/60)}h`;
+        return `
+          <div class="upcoming-item">
+            <div class="upcoming-time">${time} <span style="color:var(--muted);font-size:10px">${eta}</span></div>
+            <div class="upcoming-name">${escapeHtml(r.guestName)}</div>
+            <div class="upcoming-meta">👥 ${r.partySize} · ${r.table ? `Table ${r.table.tableNumber}` : "No table"}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    // Table chips
+    const chipsEl = document.getElementById("table-chips");
+    chipsEl.innerHTML = tables.map(t => `
+      <span class="table-chip-sm chip-${t.status}">
+        ${escapeHtml(t.tableNumber)}
+      </span>
+    `).join("");
+  }
+
+  // ---- Status update ----
+  async function updateStatus(id, status) {
+    try {
+      await api(`/reservations/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status })
+      });
+      showToast(`Reservation marked as ${status.replace("_", " ")}.`);
+      await loadReservations();
+    } catch (err) { showToast(err.message); }
+  }
+
+  async function deleteReservation(id) {
+    if (!confirm("Delete this reservation?")) return;
+    try {
+      await api(`/reservations/${id}`, { method: "DELETE" });
+      showToast("Reservation deleted.");
+      await loadReservations();
+    } catch (err) { showToast(err.message); }
+  }
+
+  // ---- Modal ----
+  function populateTableSelect() {
+    const sel = document.getElementById("r-table");
+    const current = sel.value;
+    sel.innerHTML = `<option value="">— No specific table —</option>` +
+      tables.map(t => `<option value="${t.id}">${t.tableNumber} (cap. ${t.capacity}) — ${t.status}</option>`).join("");
+    if (current) sel.value = current;
+  }
+
+  function openModal(prefill = null) {
+    editingId = prefill ? prefill.id : null;
+    document.getElementById("modal-title").textContent = prefill ? "Edit Reservation" : "New Reservation";
+    document.getElementById("r-name").value = prefill ? prefill.guestName : "";
+    document.getElementById("r-phone").value = prefill ? (prefill.guestPhone || "") : "";
+    document.getElementById("r-size").value = prefill ? prefill.partySize : "";
+    document.getElementById("r-notes").value = prefill ? (prefill.notes || "") : "";
+    document.getElementById("r-table").value = prefill ? (prefill.tableId || "") : "";
+
+    // Set default datetime to next hour
+    if (!prefill) {
+      const next = new Date(currentDate);
+      next.setHours(new Date().getHours() + 1, 0, 0, 0);
+      document.getElementById("r-datetime").value = next.toISOString().slice(0, 16);
+    } else {
+      document.getElementById("r-datetime").value = new Date(prefill.reservedAt).toISOString().slice(0, 16);
+    }
+
+    document.getElementById("res-modal").classList.add("open");
+  }
+
+  function closeModal() { document.getElementById("res-modal").classList.remove("open"); }
+
+  function editReservation(id) {
+    const res = reservations.find(r => r.id === id);
+    if (res) openModal(res);
+  }
+
+  async function saveReservation() {
+    const guestName = document.getElementById("r-name").value.trim();
+    const reservedAt = document.getElementById("r-datetime").value;
+    const partySize = parseInt(document.getElementById("r-size").value);
+
+    if (!guestName) { showToast("Guest name is required."); return; }
+    if (!reservedAt) { showToast("Date and time is required."); return; }
+    if (!partySize || partySize < 1) { showToast("Enter a valid party size."); return; }
+
+    const body = {
+      guestName,
+      guestPhone: document.getElementById("r-phone").value.trim() || undefined,
+      reservedAt,
+      partySize,
+      tableId: document.getElementById("r-table").value || undefined,
+      notes: document.getElementById("r-notes").value.trim() || undefined,
+    };
+
+    try {
+      if (editingId) {
+        await api(`/reservations/${editingId}`, { method: "PUT", body: JSON.stringify(body) });
+        showToast("Reservation updated.");
+      } else {
+        await api("/reservations", { method: "POST", body: JSON.stringify(body) });
+        showToast("Reservation created.");
+      }
+      closeModal();
+      await loadReservations();
+    } catch (err) { showToast(err.message); }
+  }
+
+  // ---- Helpers ----
+  function showToast(msg) {
+    const toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 2500);
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  document.querySelectorAll(".modal-bg").forEach(bg => {
+    bg.addEventListener("click", e => { if (e.target === bg) bg.classList.remove("open"); });
+  });
+
+  // Auto-refresh every 2 minutes
+  setInterval(loadReservations, 120000);
+
+  updateDateLabel();
+  loadReservations();
+</script>
+</body>
+</html>

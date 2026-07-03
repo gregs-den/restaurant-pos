@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Receipt</title>
+<style>
+  :root {
+    --bg: #14181a;
+    --panel: #1d2326;
+    --card: #232a2d;
+    --border: #2a3033;
+    --accent: #2d8f5f;
+    --muted: #8a9296;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-receipt: 'Courier New', Courier, monospace;
+  }
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    font-family: var(--font-body);
+    color: #eee;
+    min-height: 100vh;
+  }
+
+  /* ---- Controls (hidden on print) ---- */
+  .controls {
+    background: var(--panel);
+    border-bottom: 3px solid var(--accent);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .controls h1 {
+    font-family: var(--font-receipt);
+    font-size: 17px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin: 0;
+    flex: 1;
+  }
+  .ctrl-group { display: flex; gap: 8px; align-items: center; }
+  .ctrl-group label { font-size: 12px; color: var(--muted); }
+  select.size-sel {
+    padding: 6px 10px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: #eee;
+    font-size: 13px;
+  }
+  .btn {
+    padding: 8px 16px;
+    border-radius: 5px;
+    border: none;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: var(--font-body);
+    font-weight: 600;
+  }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-ghost { background: #2a3336; color: #eee; }
+  .btn-ghost:hover { background: #333d41; }
+
+  /* ---- Order lookup ---- */
+  .lookup {
+    max-width: 480px;
+    margin: 40px auto;
+    padding: 28px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    text-align: center;
+  }
+  .lookup h2 { margin: 0 0 16px; font-size: 16px; }
+  .lookup input {
+    width: 100%; padding: 10px 12px;
+    border-radius: 6px; border: 1px solid var(--border);
+    background: var(--card); color: #eee;
+    font-size: 14px; margin-bottom: 12px;
+    font-family: var(--font-body);
+  }
+  .lookup .btn { width: 100%; padding: 12px; font-size: 14px; }
+
+  /* ---- Receipt wrapper ---- */
+  .receipt-wrapper {
+    display: none;
+    justify-content: center;
+    padding: 30px 20px 60px;
+  }
+  .receipt-wrapper.show { display: flex; }
+
+  /* ---- 80mm Receipt ---- */
+  .receipt-80 {
+    width: 302px; /* 80mm */
+    background: #fff;
+    color: #000;
+    font-family: var(--font-receipt);
+    font-size: 12px;
+    padding: 12px 10px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  .receipt-80 .r-center { text-align: center; }
+  .receipt-80 .r-bold { font-weight: bold; }
+  .receipt-80 .r-big { font-size: 15px; font-weight: bold; }
+  .receipt-80 .r-divider { border-top: 1px dashed #000; margin: 6px 0; }
+  .receipt-80 .r-divider-solid { border-top: 1px solid #000; margin: 6px 0; }
+  .receipt-80 .r-row { display: flex; justify-content: space-between; }
+  .receipt-80 .r-row .r-left { flex: 1; padding-right: 6px; }
+  .receipt-80 .r-item-name { font-weight: bold; }
+  .receipt-80 .r-item-note { font-size: 10px; font-style: italic; padding-left: 4px; }
+  .receipt-80 .r-total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; }
+  .receipt-80 .r-spacer { height: 6px; }
+  .receipt-80 .r-footer { text-align: center; font-size: 10px; margin-top: 8px; }
+  .receipt-80 .r-paid { text-align: center; font-size: 13px; font-weight: bold; margin: 8px 0; border: 2px solid #000; padding: 4px; }
+
+  /* ---- A4 Receipt ---- */
+  .receipt-a4 {
+    width: 794px; /* A4 at 96dpi */
+    background: #fff;
+    color: #000;
+    font-family: var(--font-receipt);
+    font-size: 13px;
+    padding: 40px 50px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  .receipt-a4 .a4-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+  .receipt-a4 .a4-biz { }
+  .receipt-a4 .a4-biz h2 { margin: 0 0 4px; font-size: 20px; letter-spacing: 1px; }
+  .receipt-a4 .a4-biz p { margin: 0; font-size: 12px; }
+  .receipt-a4 .a4-receipt-info { text-align: right; font-size: 12px; }
+  .receipt-a4 .a4-receipt-info .a4-receipt-no { font-size: 18px; font-weight: bold; margin-bottom: 4px; }
+  .receipt-a4 .a4-divider { border-top: 2px solid #000; margin: 16px 0 8px; }
+  .receipt-a4 .a4-divider-thin { border-top: 1px dashed #999; margin: 8px 0; }
+  .receipt-a4 .a4-order-info { display: flex; gap: 32px; font-size: 12px; margin-bottom: 16px; }
+  .receipt-a4 .a4-order-info div { }
+  .receipt-a4 .a4-order-info .label { color: #666; font-size: 11px; text-transform: uppercase; }
+  .receipt-a4 table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .receipt-a4 table th { text-align: left; border-bottom: 1px solid #000; padding: 6px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .receipt-a4 table th:last-child { text-align: right; }
+  .receipt-a4 table td { padding: 8px 4px; border-bottom: 1px dashed #eee; vertical-align: top; }
+  .receipt-a4 table td:last-child { text-align: right; }
+  .receipt-a4 .a4-note { font-size: 11px; color: #666; font-style: italic; }
+  .receipt-a4 .a4-totals { width: 240px; margin-left: auto; margin-top: 16px; }
+  .receipt-a4 .a4-totals .tot-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
+  .receipt-a4 .a4-totals .tot-total { font-weight: bold; font-size: 16px; border-top: 2px solid #000; padding-top: 8px; margin-top: 4px; }
+  .receipt-a4 .a4-payments { margin-top: 20px; }
+  .receipt-a4 .a4-payments h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px; }
+  .receipt-a4 .a4-pay-row { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; }
+  .receipt-a4 .a4-paid-stamp { text-align: center; margin-top: 24px; }
+  .receipt-a4 .a4-paid-stamp .stamp { display: inline-block; border: 3px solid #2d8f5f; color: #2d8f5f; padding: 8px 24px; font-size: 20px; font-weight: bold; letter-spacing: 4px; transform: rotate(-5deg); }
+  .receipt-a4 .a4-footer { text-align: center; font-size: 11px; color: #666; margin-top: 32px; border-top: 1px solid #eee; padding-top: 12px; }
+  .receipt-a4 .a4-sig { display: flex; justify-content: space-between; margin-top: 40px; font-size: 12px; }
+  .receipt-a4 .a4-sig div { text-align: center; width: 160px; }
+  .receipt-a4 .a4-sig .sig-line { border-top: 1px solid #000; padding-top: 4px; margin-top: 32px; }
+
+  /* ---- Print styles ---- */
+  @media print {
+    body { background: #fff !important; }
+    .controls { display: none !important; }
+    .lookup { display: none !important; }
+    .receipt-wrapper { padding: 0 !important; display: flex !important; }
+    .receipt-80, .receipt-a4 { box-shadow: none !important; }
+
+    @page {
+      margin: 0;
+    }
+  }
+
+  @media print and (max-width: 90mm) {
+    .receipt-a4 { display: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Controls -->
+<div class="controls" id="controls">
+  <h1>🧾 Receipt</h1>
+  <div class="ctrl-group">
+    <label>Format</label>
+    <select class="size-sel" id="format-sel" onchange="switchFormat(this.value)">
+      <option value="80mm">80mm Thermal</option>
+      <option value="a4">A4 / Letter</option>
+    </select>
+  </div>
+  <button class="btn btn-accent" onclick="window.print()">🖨️ Print</button>
+  <button class="btn btn-ghost" onclick="goBack()">← Back</button>
+</div>
+
+<!-- Lookup form (shown when no orderId in URL) -->
+<div class="lookup" id="lookup-form">
+  <h2>Enter Order ID</h2>
+  <input type="text" id="order-id-input" placeholder="Paste order ID here…" />
+  <button class="btn btn-accent" onclick="loadByInput()">Load Receipt</button>
+</div>
+
+<!-- Receipt output -->
+<div class="receipt-wrapper" id="receipt-wrapper"></div>
+
+<script>
+  const API_BASE = "http://localhost:3000";
+  const TOKEN = localStorage.getItem("pos_token");
+  if (!TOKEN) window.location.href = "/";
+
+  let currentOrder = null;
+  let currentFormat = "80mm";
+
+  // Check for orderId in URL params
+  const params = new URLSearchParams(window.location.search);
+  const urlOrderId = params.get("orderId");
+  if (urlOrderId) {
+    document.getElementById("lookup-form").style.display = "none";
+    loadReceipt(urlOrderId);
+  }
+
+  function loadByInput() {
+    const id = document.getElementById("order-id-input").value.trim();
+    if (!id) return;
+    loadReceipt(id);
+  }
+
+  async function loadReceipt(orderId) {
+    try {
+      const res = await fetch(`${API_BASE}/orders/${orderId}/receipt`, {
+        headers: { Authorization: `Bearer ${TOKEN}` }
+      });
+      if (!res.ok) throw new Error("Order not found");
+      currentOrder = await res.json();
+      document.getElementById("lookup-form").style.display = "none";
+      renderReceipt(currentFormat);
+    } catch (err) {
+      alert("Could not load receipt: " + err.message);
+    }
+  }
+
+  function switchFormat(fmt) {
+    currentFormat = fmt;
+    if (currentOrder) renderReceipt(fmt);
+  }
+
+  function renderReceipt(format) {
+    const wrapper = document.getElementById("receipt-wrapper");
+    wrapper.classList.add("show");
+    if (format === "80mm") {
+      wrapper.innerHTML = render80mm(currentOrder);
+    } else {
+      wrapper.innerHTML = renderA4(currentOrder);
+    }
+  }
+
+  function render80mm(o) {
+    const tableLabel = o.table ? `Table ${o.table.tableNumber}` : o.orderType.replace("_", " ");
+    const date = new Date(o.createdAt).toLocaleString("en-PH", { dateStyle: "short", timeStyle: "short" });
+    const receiptNo = o.id.slice(-8).toUpperCase();
+    const totalPaid = o.payments.reduce((s, p) => s + Number(p.amount), 0);
+    const change = Math.max(0, totalPaid - Number(o.totalAmount || 0));
+
+    const itemsHtml = o.orderItems.map(it => `
+      <div class="r-row">
+        <div class="r-left">
+          <div class="r-item-name">${it.quantity}x ${escapeHtml(it.menuItem.name)}</div>
+          ${it.notes ? `<div class="r-item-note">"${escapeHtml(it.notes)}"</div>` : ""}
+        </div>
+        <div>₱${Number(it.subtotal).toFixed(2)}</div>
+      </div>
+    `).join("");
+
+    const paymentsHtml = o.payments.map(p => `
+      <div class="r-row"><div>${escapeHtml(p.method)}</div><div>₱${Number(p.amount).toFixed(2)}</div></div>
+    `).join("");
+
+    return `
+      <div class="receipt-80">
+        <div class="r-center r-bold" style="font-size:14px">RESTAURANT POS</div>
+        <div class="r-center" style="font-size:10px">Official Receipt</div>
+        <div class="r-spacer"></div>
+        <div class="r-center" style="font-size:10px">${date}</div>
+        <div class="r-center" style="font-size:10px">OR No: ${receiptNo}</div>
+        <div class="r-center" style="font-size:10px">${escapeHtml(tableLabel)} — ${escapeHtml(o.orderType.replace("_", " "))}</div>
+        <div class="r-center" style="font-size:10px">Served by: ${escapeHtml(o.user.name)}</div>
+        <div class="r-divider"></div>
+        ${itemsHtml}
+        <div class="r-divider"></div>
+        <div class="r-row"><div>Subtotal</div><div>₱${Number(o.subtotal).toFixed(2)}</div></div>
+        <div class="r-row"><div>Discount</div><div>-₱${Number(o.discountAmount).toFixed(2)}</div></div>
+        <div class="r-row"><div>VAT (12%)</div><div>₱${Number(o.taxAmount).toFixed(2)}</div></div>
+        <div class="r-divider-solid"></div>
+        <div class="r-total-row"><div>TOTAL</div><div>₱${Number(o.totalAmount).toFixed(2)}</div></div>
+        <div class="r-spacer"></div>
+        ${paymentsHtml}
+        ${change > 0 ? `<div class="r-row r-bold"><div>CHANGE</div><div>₱${change.toFixed(2)}</div></div>` : ""}
+        <div class="r-spacer"></div>
+        ${o.paymentStatus === "PAID" ? `<div class="r-paid">✓ PAID IN FULL</div>` : ""}
+        <div class="r-divider"></div>
+        <div class="r-footer">This serves as your official receipt.</div>
+        <div class="r-footer">VAT Reg. TIN: 000-000-000-000</div>
+        <div class="r-footer" style="margin-top:6px">Thank you for dining with us!</div>
+        <div class="r-footer">Please come again. 😊</div>
+        <div style="height:20px"></div>
+      </div>
+    `;
+  }
+
+  function renderA4(o) {
+    const tableLabel = o.table ? `Table ${o.table.tableNumber}` : o.orderType.replace("_", " ");
+    const date = new Date(o.createdAt).toLocaleString("en-PH", { dateStyle: "long", timeStyle: "short" });
+    const receiptNo = o.id.slice(-8).toUpperCase();
+    const totalPaid = o.payments.reduce((s, p) => s + Number(p.amount), 0);
+    const change = Math.max(0, totalPaid - Number(o.totalAmount || 0));
+
+    const itemsHtml = o.orderItems.map(it => `
+      <tr>
+        <td>${escapeHtml(it.menuItem.name)}${it.notes ? `<br><span class="a4-note">"${escapeHtml(it.notes)}"</span>` : ""}</td>
+        <td style="text-align:center">${it.quantity}</td>
+        <td style="text-align:right">₱${Number(it.unitPrice).toFixed(2)}</td>
+        <td style="text-align:right">₱${Number(it.subtotal).toFixed(2)}</td>
+      </tr>
+    `).join("");
+
+    const paymentsHtml = o.payments.map(p => `
+      <div class="a4-pay-row">
+        <span>${escapeHtml(p.method)}${p.referenceNo ? ` (${escapeHtml(p.referenceNo)})` : ""}</span>
+        <span>₱${Number(p.amount).toFixed(2)}</span>
+      </div>
+    `).join("");
+
+    return `
+      <div class="receipt-a4">
+        <div class="a4-header">
+          <div class="a4-biz">
+            <h2>RESTAURANT POS</h2>
+            <p>123 Main Street, Your City</p>
+            <p>VAT Reg. TIN: 000-000-000-000</p>
+            <p>Tel: (02) 000-0000</p>
+          </div>
+          <div class="a4-receipt-info">
+            <div class="a4-receipt-no">OR-${receiptNo}</div>
+            <div>${date}</div>
+            <div style="margin-top:6px">Served by: ${escapeHtml(o.user.name)}</div>
+          </div>
+        </div>
+
+        <div class="a4-divider"></div>
+
+        <div class="a4-order-info">
+          <div><div class="label">Order Type</div>${escapeHtml(o.orderType.replace("_", " "))}</div>
+          <div><div class="label">Table</div>${escapeHtml(tableLabel)}</div>
+          <div><div class="label">Status</div>${escapeHtml(o.paymentStatus)}</div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th style="text-align:center">Qty</th>
+              <th style="text-align:right">Unit Price</th>
+              <th style="text-align:right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+
+        <div class="a4-totals">
+          <div class="tot-row"><span>Subtotal</span><span>₱${Number(o.subtotal).toFixed(2)}</span></div>
+          <div class="tot-row"><span>Discount</span><span>-₱${Number(o.discountAmount).toFixed(2)}</span></div>
+          <div class="tot-row"><span>VAT (12%)</span><span>₱${Number(o.taxAmount).toFixed(2)}</span></div>
+          <div class="tot-row tot-total"><span>TOTAL DUE</span><span>₱${Number(o.totalAmount).toFixed(2)}</span></div>
+          ${change > 0 ? `<div class="tot-row"><span>Change</span><span>₱${change.toFixed(2)}</span></div>` : ""}
+        </div>
+
+        <div class="a4-payments">
+          <h4>Payment</h4>
+          ${paymentsHtml}
+        </div>
+
+        ${o.paymentStatus === "PAID" ? `<div class="a4-paid-stamp"><div class="stamp">PAID</div></div>` : ""}
+
+        <div class="a4-sig">
+          <div><div class="sig-line">Cashier Signature</div></div>
+          <div><div class="sig-line">Customer Signature</div></div>
+        </div>
+
+        <div class="a4-footer">
+          This is your Official Receipt. Please keep for your records.<br>
+          Thank you for dining with us!
+        </div>
+      </div>
+    `;
+  }
+
+  function goBack() {
+    const ref = document.referrer;
+    if (ref) window.history.back();
+    else window.location.href = "/cashier-billing.html";
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+</script>
+</body>
+</html>

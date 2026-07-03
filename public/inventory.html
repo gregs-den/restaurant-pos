@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Inventory Management</title>
+<style>
+  :root {
+    --bg: #14181a;
+    --panel: #1d2326;
+    --card: #232a2d;
+    --border: #2a3033;
+    --accent: #2d8f5f;
+    --accent-dark: #1f6e47;
+    --accent2: #ff6a3d;
+    --danger: #c4452b;
+    --warn: #e0a72e;
+    --muted: #8a9296;
+    --font-display: 'Courier New', monospace;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); font-family: var(--font-body); color: #eee; min-height: 100vh; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px; background: var(--panel);
+    border-bottom: 3px solid var(--accent); flex-wrap: wrap; gap: 10px;
+  }
+  header h1 { font-family: var(--font-display); letter-spacing: 2px; font-size: 18px; margin: 0; text-transform: uppercase; }
+  .header-right { display: flex; gap: 8px; }
+
+  /* ---- Tabs ---- */
+  .tabs {
+    display: flex; background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  .tab-btn {
+    padding: 14px 20px; font-size: 13px; font-weight: 600;
+    cursor: pointer; color: var(--muted); border: none;
+    background: none; border-bottom: 3px solid transparent;
+    font-family: var(--font-body); transition: all 0.15s;
+  }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .main { padding: 24px; }
+
+  .btn {
+    padding: 8px 16px; border-radius: 5px; border: none;
+    font-size: 13px; cursor: pointer; font-family: var(--font-body); font-weight: 500;
+  }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-accent:hover { background: var(--accent-dark); }
+  .btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+  .btn-danger:hover { background: var(--danger); color: #fff; }
+  .btn-ghost { background: #2a3336; color: #eee; }
+  .btn-ghost:hover { background: #333d41; }
+  .btn-warn { background: var(--warn); color: #000; }
+
+  /* ---- Low stock alert bar ---- */
+  .alert-bar {
+    display: none; background: #3a2a1f; border: 1px solid var(--warn);
+    border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;
+    align-items: center; gap: 12px;
+  }
+  .alert-bar.show { display: flex; }
+  .alert-bar .alert-icon { font-size: 20px; }
+  .alert-bar .alert-text { flex: 1; font-size: 13px; color: #f2c978; }
+  .alert-bar .alert-items { font-weight: 600; }
+
+  /* ---- Section head ---- */
+  .section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .section-head h2 { margin: 0; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  /* ---- Ingredients table ---- */
+  .ing-table { width: 100%; border-collapse: collapse; }
+  .ing-table th { text-align: left; border-bottom: 1px solid var(--border); padding: 10px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+  .ing-table td { padding: 12px; border-bottom: 1px solid #1e2528; font-size: 13px; }
+  .ing-table tr:hover td { background: #1e2528; }
+
+  .stock-bar-wrap { width: 80px; height: 6px; background: var(--border); border-radius: 3px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+  .stock-bar-fill { height: 100%; border-radius: 3px; }
+  .stock-ok { background: var(--accent); }
+  .stock-low { background: var(--warn); }
+  .stock-empty { background: var(--danger); }
+
+  .low-badge { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 3px; background: #3a2a1f; color: #f2c978; margin-left: 6px; }
+  .empty-badge { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 3px; background: #3a1f1f; color: #eb5757; margin-left: 6px; }
+
+  .unit-tag { font-size: 11px; color: var(--muted); margin-left: 3px; }
+
+  /* ---- Movement log ---- */
+  .mov-table { width: 100%; border-collapse: collapse; }
+  .mov-table th { text-align: left; border-bottom: 1px solid var(--border); padding: 10px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+  .mov-table td { padding: 10px 12px; border-bottom: 1px solid #1e2528; font-size: 13px; }
+  .mov-type { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .mov-IN { background: #1f3a2a; color: #6fcf97; }
+  .mov-OUT { background: #3a1f1f; color: #eb5757; }
+  .mov-ADJUSTMENT { background: #2a2a3a; color: #9b9ef7; }
+  .mov-WASTE { background: #3a2a1f; color: #f2994a; }
+
+  /* ---- Recipe tab ---- */
+  .recipe-layout { display: grid; grid-template-columns: 280px 1fr; gap: 20px; }
+  @media (max-width: 800px) { .recipe-layout { grid-template-columns: 1fr; } }
+  .menu-list { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .menu-list-item { padding: 12px 14px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 13px; }
+  .menu-list-item:hover { background: #2a3336; }
+  .menu-list-item.active { background: #243228; border-left: 3px solid var(--accent); }
+  .menu-list-item:last-child { border-bottom: none; }
+
+  .recipe-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+  .recipe-card h3 { margin: 0 0 16px; font-size: 15px; }
+  .recipe-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .recipe-item:last-of-type { border-bottom: none; }
+  .recipe-item .ri-name { flex: 1; font-size: 13px; }
+  .recipe-item .ri-qty { font-family: var(--font-display); font-size: 13px; color: var(--accent); }
+  .recipe-item .ri-unit { font-size: 11px; color: var(--muted); }
+
+  .empty-state { text-align: center; color: var(--muted); padding: 40px 20px; font-size: 13px; }
+
+  /* ---- Modal ---- */
+  .modal-bg {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 28px; width: 100%;
+    max-width: 480px; max-height: 90vh; overflow-y: auto;
+  }
+  .modal h3 { margin: 0 0 20px; font-size: 16px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 9px 10px; border-radius: 5px;
+    border: 1px solid var(--border); background: #1a2022; color: #eee;
+    font-size: 14px; font-family: var(--font-body);
+  }
+  .field .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+  .recipe-ing-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .recipe-ing-row select { flex: 1; }
+  .recipe-ing-row input { width: 80px; }
+  .recipe-ing-row .unit-lbl { font-size: 11px; color: var(--muted); min-width: 30px; }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--accent-dark); color: #fff;
+    padding: 10px 20px; border-radius: 6px; font-size: 13px;
+    opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 200;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📦 Inventory</h1>
+  <div class="header-right">
+    <button class="btn btn-ghost" onclick="logout()">Logout</button>
+  </div>
+</header>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('stock')">📊 Stock Levels</button>
+  <button class="tab-btn" onclick="switchTab('movements')">📋 Movement Log</button>
+  <button class="tab-btn" onclick="switchTab('recipes')">🍽️ Recipes</button>
+</div>
+
+<!-- ===== STOCK TAB ===== -->
+<div class="main" id="tab-stock">
+  <!-- Low stock alert -->
+  <div class="alert-bar" id="low-stock-bar">
+    <div class="alert-icon">⚠️</div>
+    <div class="alert-text">Low stock: <span class="alert-items" id="low-stock-items"></span></div>
+  </div>
+
+  <div class="section-head">
+    <h2>Ingredients</h2>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="openAdjustModal()">± Adjust Stock</button>
+      <button class="btn btn-accent" onclick="openIngModal()">+ Add Ingredient</button>
+    </div>
+  </div>
+
+  <div style="overflow-x:auto">
+    <table class="ing-table" id="ing-table">
+      <thead>
+        <tr>
+          <th>Ingredient</th>
+          <th>Current Stock</th>
+          <th>Low Stock Alert</th>
+          <th>Unit</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="ing-tbody">
+        <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:40px">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===== MOVEMENTS TAB ===== -->
+<div class="main" id="tab-movements" style="display:none">
+  <div class="section-head">
+    <h2>Stock Movement Log</h2>
+    <button class="btn btn-ghost" onclick="loadMovements()">🔄 Refresh</button>
+  </div>
+  <div style="overflow-x:auto">
+    <table class="mov-table" id="mov-table">
+      <thead>
+        <tr>
+          <th>Date/Time</th>
+          <th>Ingredient</th>
+          <th>Type</th>
+          <th>Quantity</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody id="mov-tbody">
+        <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:40px">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===== RECIPES TAB ===== -->
+<div class="main" id="tab-recipes" style="display:none">
+  <div style="margin-bottom:16px;font-size:13px;color:var(--muted)">
+    Link ingredients to menu items so stock auto-deducts when orders are placed.
+  </div>
+  <div class="recipe-layout">
+    <div>
+      <div class="section-head"><h2>Menu Items</h2></div>
+      <div class="menu-list" id="recipe-menu-list"></div>
+    </div>
+    <div>
+      <div class="section-head">
+        <h2 id="recipe-title">Select a menu item</h2>
+        <button class="btn btn-accent" id="edit-recipe-btn" style="display:none" onclick="openRecipeModal()">✏️ Edit Recipe</button>
+      </div>
+      <div class="recipe-card" id="recipe-card">
+        <div class="empty-state">👈 Select a menu item to view or set its recipe.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Ingredient Modal -->
+<div class="modal-bg" id="ing-modal">
+  <div class="modal">
+    <h3 id="ing-modal-title">Add Ingredient</h3>
+    <div class="field"><label>Name</label><input type="text" id="ing-name" placeholder="e.g. Pork Belly" /></div>
+    <div class="field-row">
+      <div class="field">
+        <label>Unit</label>
+        <select id="ing-unit">
+          <option value="G">Grams (g)</option>
+          <option value="KG">Kilograms (kg)</option>
+          <option value="ML">Milliliters (ml)</option>
+          <option value="L">Liters (L)</option>
+          <option value="PCS">Pieces (pcs)</option>
+          <option value="DOZEN">Dozen</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Current Stock</label>
+        <input type="number" id="ing-stock" placeholder="0" step="0.001" />
+      </div>
+    </div>
+    <div class="field">
+      <label>Low Stock Alert At</label>
+      <input type="number" id="ing-alert" placeholder="e.g. 500" step="0.001" />
+      <div class="hint">You'll be alerted when stock falls below this amount.</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeIngModal()">Cancel</button>
+      <button class="btn btn-accent" onclick="saveIngredient()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Adjust Stock Modal -->
+<div class="modal-bg" id="adjust-modal">
+  <div class="modal">
+    <h3>Adjust Stock</h3>
+    <div class="field">
+      <label>Ingredient</label>
+      <select id="adj-ingredient"></select>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Type</label>
+        <select id="adj-type">
+          <option value="IN">Stock In (restock)</option>
+          <option value="OUT">Stock Out (manual)</option>
+          <option value="ADJUSTMENT">Adjustment</option>
+          <option value="WASTE">Waste</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Quantity</label>
+        <input type="number" id="adj-qty" placeholder="0" step="0.001" />
+      </div>
+    </div>
+    <div class="field">
+      <label>Notes</label>
+      <input type="text" id="adj-notes" placeholder="optional reason" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeAdjustModal()">Cancel</button>
+      <button class="btn btn-accent" onclick="saveAdjustment()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Recipe Modal -->
+<div class="modal-bg" id="recipe-modal">
+  <div class="modal">
+    <h3 id="recipe-modal-title">Edit Recipe</h3>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Set how much of each ingredient is used per 1 serving of this item.</div>
+    <div id="recipe-rows"></div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="addRecipeRow()">+ Add Ingredient</button>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeRecipeModal()">Cancel</button>
+      <button class="btn btn-accent" onclick="saveRecipe()">Save Recipe</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const API_BASE = "http://localhost:3000";
+  const TOKEN = localStorage.getItem("pos_token");
+  if (!TOKEN) window.location.href = "/";
+
+  let ingredients = [];
+  let menuItems = [];
+  let selectedMenuItemId = null;
+  let editingIngId = null;
+
+  function logout() {
+    localStorage.removeItem("pos_token");
+    localStorage.removeItem("pos_role");
+    localStorage.removeItem("pos_user");
+    window.location.href = "/Projects%202026/restaurant-pos/public/index.html";
+  }
+
+  async function api(path, options = {}) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN}`, ...(options.headers || {}) }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  }
+
+  // ---- Tabs ----
+  function switchTab(tab) {
+    ["stock", "movements", "recipes"].forEach(t => {
+      document.getElementById(`tab-${t}`).style.display = t === tab ? "block" : "none";
+    });
+    document.querySelectorAll(".tab-btn").forEach((btn, i) => {
+      btn.classList.toggle("active", ["stock", "movements", "recipes"][i] === tab);
+    });
+    if (tab === "movements") loadMovements();
+    if (tab === "recipes") loadRecipes();
+  }
+
+  // ---- Stock Tab ----
+  async function loadIngredients() {
+    try {
+      [ingredients] = await Promise.all([api("/ingredients")]);
+      renderIngredients();
+      checkLowStock();
+    } catch (err) {
+      showToast("Failed to load ingredients.");
+    }
+  }
+
+  function renderIngredients() {
+    const tbody = document.getElementById("ing-tbody");
+    if (!ingredients.length) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:40px">No ingredients yet. Click "+ Add Ingredient" to start.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = ingredients.map(ing => {
+      const stock = Number(ing.currentStock);
+      const alert = Number(ing.lowStockAlert);
+      const isEmpty = stock <= 0;
+      const isLow = !isEmpty && stock <= alert && alert > 0;
+      const pct = alert > 0 ? Math.min(100, (stock / (alert * 2)) * 100) : 100;
+      const barClass = isEmpty ? "stock-empty" : isLow ? "stock-low" : "stock-ok";
+      const badge = isEmpty ? `<span class="empty-badge">Empty</span>` : isLow ? `<span class="low-badge">Low</span>` : "";
+
+      return `
+        <tr>
+          <td><strong>${escapeHtml(ing.name)}</strong>${badge}</td>
+          <td>
+            <span class="stock-bar-wrap"><span class="stock-bar-fill ${barClass}" style="width:${pct}%"></span></span>
+            <strong>${stock.toLocaleString()}</strong><span class="unit-tag">${ing.unit.toLowerCase()}</span>
+          </td>
+          <td>${Number(ing.lowStockAlert).toLocaleString()}<span class="unit-tag">${ing.unit.toLowerCase()}</span></td>
+          <td>${ing.unit}</td>
+          <td>${isEmpty ? '🔴 Empty' : isLow ? '🟡 Low' : '🟢 OK'}</td>
+          <td>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-ghost" style="padding:5px 10px;font-size:11px" onclick="editIngredient('${ing.id}')">✏️ Edit</button>
+              <button class="btn btn-ghost" style="padding:5px 10px;font-size:11px" onclick="quickAdjust('${ing.id}')">± Stock</button>
+              <button class="btn btn-danger" style="padding:5px 10px;font-size:11px" onclick="deleteIngredient('${ing.id}', '${escapeHtml(ing.name)}')">🗑️</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  async function checkLowStock() {
+    try {
+      const low = await api("/stock/low-stock");
+      const bar = document.getElementById("low-stock-bar");
+      if (low.length > 0) {
+        bar.classList.add("show");
+        document.getElementById("low-stock-items").textContent = low.map(i => i.name).join(", ");
+      } else {
+        bar.classList.remove("show");
+      }
+    } catch (err) {}
+  }
+
+  // ---- Ingredient Modal ----
+  function openIngModal(prefill = null) {
+    editingIngId = prefill ? prefill.id : null;
+    document.getElementById("ing-modal-title").textContent = prefill ? "Edit Ingredient" : "Add Ingredient";
+    document.getElementById("ing-name").value = prefill ? prefill.name : "";
+    document.getElementById("ing-unit").value = prefill ? prefill.unit : "G";
+    document.getElementById("ing-stock").value = prefill ? Number(prefill.currentStock) : "";
+    document.getElementById("ing-alert").value = prefill ? Number(prefill.lowStockAlert) : "";
+    document.getElementById("ing-modal").classList.add("open");
+  }
+
+  function closeIngModal() { document.getElementById("ing-modal").classList.remove("open"); }
+
+  function editIngredient(id) {
+    const ing = ingredients.find(i => i.id === id);
+    if (ing) openIngModal(ing);
+  }
+
+  async function saveIngredient() {
+    const name = document.getElementById("ing-name").value.trim();
+    if (!name) { showToast("Name is required."); return; }
+    const body = {
+      name,
+      unit: document.getElementById("ing-unit").value,
+      currentStock: parseFloat(document.getElementById("ing-stock").value) || 0,
+      lowStockAlert: parseFloat(document.getElementById("ing-alert").value) || 0,
+    };
+    try {
+      if (editingIngId) {
+        await api(`/ingredients/${editingIngId}`, { method: "PUT", body: JSON.stringify(body) });
+        showToast("Ingredient updated.");
+      } else {
+        await api("/ingredients", { method: "POST", body: JSON.stringify(body) });
+        showToast("Ingredient added.");
+      }
+      closeIngModal();
+      await loadIngredients();
+    } catch (err) { showToast(err.message); }
+  }
+
+  async function deleteIngredient(id, name) {
+    if (!confirm(`Delete "${name}"?`)) return;
+    try {
+      await api(`/ingredients/${id}`, { method: "DELETE" });
+      showToast("Ingredient deleted.");
+      await loadIngredients();
+    } catch (err) { showToast(err.message); }
+  }
+
+  // ---- Adjust Stock Modal ----
+  function populateIngredientSelect(selectId) {
+    const sel = document.getElementById(selectId);
+    sel.innerHTML = ingredients.map(i => `<option value="${i.id}">${escapeHtml(i.name)} (${i.unit})</option>`).join("");
+  }
+
+  function openAdjustModal(preselectedId = null) {
+    populateIngredientSelect("adj-ingredient");
+    if (preselectedId) document.getElementById("adj-ingredient").value = preselectedId;
+    document.getElementById("adj-qty").value = "";
+    document.getElementById("adj-notes").value = "";
+    document.getElementById("adjust-modal").classList.add("open");
+  }
+
+  function quickAdjust(id) { openAdjustModal(id); }
+  function closeAdjustModal() { document.getElementById("adjust-modal").classList.remove("open"); }
+
+  async function saveAdjustment() {
+    const ingredientId = document.getElementById("adj-ingredient").value;
+    const quantity = parseFloat(document.getElementById("adj-qty").value);
+    if (!quantity || quantity <= 0) { showToast("Enter a valid quantity."); return; }
+    try {
+      await api("/stock/adjust", {
+        method: "POST",
+        body: JSON.stringify({
+          ingredientId,
+          type: document.getElementById("adj-type").value,
+          quantity,
+          notes: document.getElementById("adj-notes").value || undefined,
+        })
+      });
+      showToast("Stock adjusted.");
+      closeAdjustModal();
+      await loadIngredients();
+    } catch (err) { showToast(err.message); }
+  }
+
+  // ---- Movements Tab ----
+  async function loadMovements() {
+    try {
+      const movements = await api("/stock/movements");
+      const tbody = document.getElementById("mov-tbody");
+      if (!movements.length) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:40px">No stock movements yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = movements.map(m => {
+        const dt = new Date(m.createdAt).toLocaleString("en-PH", { dateStyle: "short", timeStyle: "short" });
+        const sign = ["IN", "ADJUSTMENT"].includes(m.type) ? "+" : "-";
+        return `
+          <tr>
+            <td>${dt}</td>
+            <td>${escapeHtml(m.ingredient.name)}</td>
+            <td><span class="mov-type mov-${m.type}">${m.type}</span></td>
+            <td style="font-family:var(--font-display)">${sign}${Number(m.quantity).toLocaleString()} <span style="font-size:11px;color:var(--muted)">${m.ingredient.unit.toLowerCase()}</span></td>
+            <td style="color:var(--muted)">${escapeHtml(m.notes || "—")}</td>
+          </tr>
+        `;
+      }).join("");
+    } catch (err) { showToast("Failed to load movements."); }
+  }
+
+  // ---- Recipes Tab ----
+  async function loadRecipes() {
+    try {
+      menuItems = await api("/menu-items");
+      const list = document.getElementById("recipe-menu-list");
+      list.innerHTML = menuItems.map(item => `
+        <div class="menu-list-item ${item.id === selectedMenuItemId ? 'active' : ''}" onclick="selectMenuItem('${item.id}', '${escapeHtml(item.name)}')">
+          ${escapeHtml(item.name)}
+        </div>
+      `).join("");
+      if (selectedMenuItemId) loadItemRecipe(selectedMenuItemId);
+    } catch (err) { showToast("Failed to load menu items."); }
+  }
+
+  async function selectMenuItem(id, name) {
+    selectedMenuItemId = id;
+    document.getElementById("recipe-title").textContent = name;
+    document.getElementById("edit-recipe-btn").style.display = "inline-block";
+    document.querySelectorAll(".menu-list-item").forEach(el => {
+      el.classList.toggle("active", el.textContent.trim() === name);
+    });
+    await loadItemRecipe(id);
+  }
+
+  async function loadItemRecipe(menuItemId) {
+    const card = document.getElementById("recipe-card");
+    try {
+      const recipe = await api(`/menu-items/${menuItemId}/ingredients`);
+      if (!recipe.length) {
+        card.innerHTML = `<div class="empty-state">No recipe set yet.<br>Click "✏️ Edit Recipe" to link ingredients.</div>`;
+        return;
+      }
+      card.innerHTML = recipe.map(r => `
+        <div class="recipe-item">
+          <div class="ri-name">${escapeHtml(r.ingredient.name)}</div>
+          <div class="ri-qty">${Number(r.quantity).toLocaleString()}</div>
+          <div class="ri-unit">${r.ingredient.unit.toLowerCase()}</div>
+        </div>
+      `).join("");
+    } catch (err) { card.innerHTML = `<div class="empty-state">Failed to load recipe.</div>`; }
+  }
+
+  // ---- Recipe Modal ----
+  let recipeRows = [];
+
+  async function openRecipeModal() {
+    document.getElementById("recipe-modal-title").textContent = `Recipe — ${document.getElementById("recipe-title").textContent}`;
+    const existing = await api(`/menu-items/${selectedMenuItemId}/ingredients`);
+    recipeRows = existing.map(r => ({ ingredientId: r.ingredientId, quantity: Number(r.quantity) }));
+    renderRecipeRows();
+    document.getElementById("recipe-modal").classList.add("open");
+  }
+
+  function closeRecipeModal() { document.getElementById("recipe-modal").classList.remove("open"); }
+
+  function renderRecipeRows() {
+    const container = document.getElementById("recipe-rows");
+    container.innerHTML = recipeRows.map((row, idx) => `
+      <div class="recipe-ing-row">
+        <select onchange="updateRecipeIngredient(${idx}, this.value)">
+          ${ingredients.map(i => `<option value="${i.id}" ${i.id === row.ingredientId ? 'selected' : ''}>${escapeHtml(i.name)}</option>`).join("")}
+        </select>
+        <input type="number" value="${row.quantity}" step="0.001" placeholder="qty"
+          onchange="recipeRows[${idx}].quantity = parseFloat(this.value) || 0" />
+        <span class="unit-lbl">
+            ${formatUnit(ingredients.find(i => i.id === row.ingredientId)?.unit)}
+        </span>
+        <button class="btn btn-danger" style="padding:5px 8px" onclick="removeRecipeRow(${idx})">✕</button>
+      </div>
+    `).join("");
+  }
+
+  function updateRecipeIngredient(idx, ingredientId) {
+  recipeRows[idx].ingredientId = ingredientId;
+  renderRecipeRows();
+  }
+
+  function addRecipeRow() {
+    if (!ingredients.length) { showToast("Add ingredients first."); return; }
+    recipeRows.push({ ingredientId: ingredients[0].id, quantity: 0 });
+    renderRecipeRows();
+  }
+
+  function removeRecipeRow(idx) {
+    recipeRows.splice(idx, 1);
+    renderRecipeRows();
+  }
+
+  async function saveRecipe() {
+    try {
+      await api(`/menu-items/${selectedMenuItemId}/ingredients`, {
+        method: "POST",
+        body: JSON.stringify({ ingredients: recipeRows.filter(r => r.quantity > 0) })
+      });
+      showToast("Recipe saved.");
+      closeRecipeModal();
+      await loadItemRecipe(selectedMenuItemId);
+    } catch (err) { showToast(err.message); }
+  }
+
+  // ---- Helpers ----
+  function showToast(msg) {
+    const toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 2500);
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function formatUnit(unit) {
+  const units = {
+    G: "g",
+    KG: "kg",
+    ML: "ml",
+    L: "L",
+    PCS: "pcs",
+    DOZEN: "dozen"
+  };
+  return units[unit] || unit;
+}
+
+  document.querySelectorAll(".modal-bg").forEach(bg => {
+    bg.addEventListener("click", e => { if (e.target === bg) bg.classList.remove("open"); });
+  });
+
+  loadIngredients();
+</script>
+</body>
+</html>

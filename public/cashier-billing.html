@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Cashier</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+  :root {
+    --bg: #14181a;
+    --panel: #1d2326;
+    --paper: #fbfaf6;
+    --paper-edge: #e3e0d5;
+    --ink: #1c1a16;
+    --accent: #2d8f5f;
+    --accent-dark: #1f6e47;
+    --due: #c4452b;
+    --muted: #8a9296;
+    --font-display: 'Courier New', monospace;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    font-family: var(--font-body);
+    color: #eee;
+    min-height: 100vh;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    background: var(--panel);
+    border-bottom: 3px solid var(--accent);
+  }
+  header h1 {
+    font-family: var(--font-display);
+    letter-spacing: 2px;
+    font-size: 20px;
+    margin: 0;
+    text-transform: uppercase;
+  }
+  .status { font-size: 13px; color: var(--muted); }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    min-height: calc(100vh - 64px);
+  }
+
+  /* ---- Left: order list ---- */
+  .order-list {
+    background: var(--panel);
+    padding: 16px;
+    overflow-y: auto;
+    border-right: 1px solid #2a3033;
+  }
+  .order-list h2 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin: 4px 4px 12px;
+  }
+  .order-card {
+    background: #232a2d;
+    border: 1px solid #2f373a;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .order-card:hover { border-color: var(--accent); }
+  .order-card.active { border-color: var(--accent); background: #243228; }
+  .order-card .table { font-family: var(--font-display); font-weight: bold; font-size: 15px; }
+  .order-card .meta { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .badge {
+    display: inline-block;
+    font-size: 9px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-top: 6px;
+  }
+  .badge.UNPAID { background: #4a2c24; color: #e89378; }
+  .badge.PARTIAL { background: #4a4424; color: #e8c878; }
+  .badge.PAID { background: #1f3a2a; color: #6fcf97; }
+  .empty-list { color: var(--muted); font-size: 13px; padding: 20px 4px; }
+
+  /* ---- Right: receipt panel ---- */
+  .receipt-area {
+    display: flex;
+    justify-content: center;
+    padding: 32px;
+  }
+  .no-selection {
+    color: var(--muted);
+    text-align: center;
+    margin-top: 120px;
+    font-size: 14px;
+  }
+  .receipt {
+    background: var(--paper);
+    color: var(--ink);
+    width: 380px;
+    padding: 24px 22px;
+    border-radius: 2px;
+    box-shadow: 0 10px 0 var(--paper-edge), 0 14px 24px rgba(0,0,0,0.4);
+    font-family: var(--font-display);
+  }
+  .receipt h3 {
+    text-align: center;
+    letter-spacing: 2px;
+    margin: 0 0 2px;
+    font-size: 16px;
+  }
+  .receipt .sub {
+    text-align: center;
+    font-size: 11px;
+    color: #6b6356;
+    margin-bottom: 14px;
+  }
+  .rule { border-top: 1px dashed var(--paper-edge); margin: 12px 0; }
+  .line { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
+  .line .name { flex: 1; padding-right: 8px; }
+  .line.total { font-weight: bold; font-size: 16px; }
+  .line.due { color: var(--due); font-weight: bold; }
+  .line.paid-ok { color: var(--accent-dark); font-weight: bold; }
+  .item-note { font-size: 10px; color: #6b6356; font-style: italic; padding-left: 4px; }
+
+  .panel-block { margin-top: 18px; font-family: var(--font-body); }
+  .panel-block label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #6b6356;
+    margin-bottom: 4px;
+  }
+  .panel-block input, .panel-block select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--paper-edge);
+    border-radius: 4px;
+    font-size: 14px;
+    background: #fff;
+    margin-bottom: 10px;
+  }
+  .method-row { display: flex; gap: 6px; margin-bottom: 10px; }
+  .method-btn {
+    flex: 1;
+    padding: 8px 4px;
+    border: 1px solid var(--paper-edge);
+    background: #fff;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: var(--font-body);
+  }
+  .method-btn.selected { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+  button.primary {
+    width: 100%;
+    padding: 12px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--font-body);
+  }
+  button.primary:hover { background: var(--accent-dark); }
+  button.primary:disabled { background: #999; cursor: not-allowed; }
+  button.secondary {
+    width: 100%;
+    padding: 10px;
+    background: #fff;
+    color: var(--ink);
+    border: 1px solid var(--paper-edge);
+    border-radius: 4px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: var(--font-body);
+    margin-bottom: 8px;
+  }
+  .payment-log { margin-top: 10px; font-family: var(--font-body); font-size: 12px; color: #6b6356; }
+  .payment-log div { padding: 2px 0; }
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent-dark);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🧾 Cashier</h1>
+  <div class="status" id="status-text">connecting…</div>
+  <button onclick="logout()" style="padding:6px 12px;border-radius:5px;border:none;background:#2a3336;color:#eee;cursor:pointer;font-size:12px">Logout</button>
+</header>
+
+<div class="layout">
+  <div class="order-list">
+    <h2>Active Orders</h2>
+    <div id="order-list-items"><div class="empty-list">Loading…</div></div>
+  </div>
+
+  <div class="receipt-area" id="receipt-area">
+    <div class="no-selection">Select an order from the left to view its bill.</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  
+  function logout() {
+  localStorage.removeItem("pos_token");
+  localStorage.removeItem("pos_role");
+  localStorage.removeItem("pos_user");
+  window.location.href = "/Projects%202026/restaurant-pos/public/index.html";
+}
+
+  const API_BASE = "http://localhost:3000";
+  const TOKEN = localStorage.getItem("pos_token");
+  if (!TOKEN) window.location.href = "/";
+
+  let currentOrderId = null;
+  let currentOrder = null;
+  let selectedMethod = "CASH";
+
+  const socket = io(API_BASE);
+  const statusText = document.getElementById("status-text");
+
+  socket.on("connect", () => {
+    statusText.textContent = "live";
+    socket.emit("join-kitchen"); // reuse same room — cashier also wants live order updates
+    loadOrderList();
+  });
+  socket.on("disconnect", () => statusText.textContent = "disconnected");
+  socket.on("new-order", loadOrderList);
+  socket.on("new-order-item", loadOrderList);
+  socket.on("order-item-status-changed", loadOrderList);
+
+  async function api(path, options = {}) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${TOKEN}`,
+        ...(options.headers || {})
+      }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  }
+
+  async function loadOrderList() {
+    try {
+      const orders = await api("/kitchen/orders");
+      // Also fetch all orders regardless of paid status would need another endpoint;
+      // for now show active (unpaid/in-progress) orders from kitchen feed
+      renderOrderList(orders);
+    } catch (err) {
+      document.getElementById("order-list-items").innerHTML = `<div class="empty-list">Couldn't load orders.</div>`;
+    }
+  }
+
+  function renderOrderList(orders) {
+    const container = document.getElementById("order-list-items");
+    if (!orders.length) {
+      container.innerHTML = `<div class="empty-list">No active orders.</div>`;
+      return;
+    }
+    container.innerHTML = orders.map(o => {
+      const label = o.table ? `Table ${o.table.tableNumber}` : o.orderType.replace("_", " ");
+      const itemCount = o.orderItems.length;
+      return `
+        <div class="order-card ${o.id === currentOrderId ? "active" : ""}" data-id="${o.id}">
+          <div class="table">${escapeHtml(label)}</div>
+          <div class="meta">${itemCount} item${itemCount !== 1 ? "s" : ""}</div>
+        </div>
+      `;
+    }).join("");
+
+    container.querySelectorAll(".order-card").forEach(card => {
+      card.addEventListener("click", () => selectOrder(card.getAttribute("data-id")));
+    });
+  }
+
+  async function selectOrder(orderId) {
+    currentOrderId = orderId;
+    document.querySelectorAll(".order-card").forEach(c => {
+      c.classList.toggle("active", c.getAttribute("data-id") === orderId);
+    });
+    await refreshReceipt();
+  }
+
+  async function refreshReceipt() {
+    if (!currentOrderId) return;
+    try {
+      currentOrder = await api(`/orders/${currentOrderId}/receipt`);
+      renderReceipt();
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  function renderReceipt() {
+    const o = currentOrder;
+    const area = document.getElementById("receipt-area");
+    const tableLabel = o.table ? `Table ${o.table.tableNumber}` : o.orderType.replace("_", " ");
+
+    const itemsHtml = o.orderItems.map(it => `
+      <div class="line"><span class="name">${it.quantity}× ${escapeHtml(it.menuItem.name)}</span><span>₱${Number(it.subtotal).toFixed(2)}</span></div>
+      ${it.notes ? `<div class="item-note">"${escapeHtml(it.notes)}"</div>` : ""}
+    `).join("");
+
+    const totalPaid = o.payments.reduce((s, p) => s + Number(p.amount), 0);
+    const totalDue = o.totalAmount ? Number(o.totalAmount) : null;
+    const balance = totalDue !== null ? Math.max(0, totalDue - totalPaid) : null;
+
+    const paymentLog = o.payments.length
+      ? `<div class="payment-log">${o.payments.map(p => `<div>${p.method} — ₱${Number(p.amount).toFixed(2)}${p.referenceNo ? " (" + escapeHtml(p.referenceNo) + ")" : ""}</div>`).join("")}</div>`
+      : "";
+
+    area.innerHTML = `
+      <div class="receipt">
+        <h3>${escapeHtml(tableLabel)}</h3>
+        <div class="sub">${escapeHtml(o.orderType.replace("_", " "))} · ${escapeHtml(o.user.name)}</div>
+        <div class="rule"></div>
+        ${itemsHtml}
+        <div class="rule"></div>
+        ${o.subtotal !== null ? `
+          <div class="line"><span>Subtotal</span><span>₱${Number(o.subtotal).toFixed(2)}</span></div>
+          <div class="line"><span>Discount</span><span>-₱${Number(o.discountAmount).toFixed(2)}</span></div>
+          <div class="line"><span>VAT (12%)</span><span>₱${Number(o.taxAmount).toFixed(2)}</span></div>
+          <div class="line total"><span>Total</span><span>₱${Number(o.totalAmount).toFixed(2)}</span></div>
+        ` : `<div class="line"><span>Bill not calculated yet</span><span></span></div>`}
+        ${totalPaid > 0 ? `<div class="line paid-ok"><span>Paid</span><span>₱${totalPaid.toFixed(2)}</span></div>` : ""}
+        ${balance !== null && balance > 0 ? `<div class="line due"><span>Balance Due</span><span>₱${balance.toFixed(2)}</span></div>` : ""}
+        ${o.paymentStatus === "PAID" ? `
+        <div class="line paid-ok"><span>PAID IN FULL ✓</span><span></span></div>
+        <a href="/Projects%202026/restaurant-pos/public/receipt.html?orderId=${o.id}" target="_blank" style="display:block;text-align:center;margin-top:8px;padding:8px;background:#1f3a2a;color:#6fcf97;border-radius:4px;font-family:var(--font-body);font-size:13px;text-decoration:none;cursor:pointer">🖨️ Print Receipt</a>
+      ` : ""}
+        ${paymentLog}
+
+        <div class="panel-block">
+          ${o.subtotal === null ? `
+            <button class="primary" id="calc-btn">Calculate Bill</button>
+          ` : o.paymentStatus !== "PAID" ? `
+          <div style="margin-bottom:12px">
+              <label style="display:block;font-size:11px;color:#6b6356;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px">Promo / Discount</label>
+              <div style="display:flex;gap:6px;margin-bottom:6px">
+                <input type="text" id="promo-input" placeholder="Enter promo code" style="flex:1;padding:8px;border:1px solid var(--paper-edge);border-radius:4px;font-size:13px;background:#fff" />
+                <button onclick="applyPromo()" style="padding:8px 12px;border:none;background:var(--ink);color:var(--paper);border-radius:4px;cursor:pointer;font-size:12px">Apply</button>
+              </div>
+              <div style="margin-bottom:8px">
+                <div style="font-size:10px;color:#6b6356;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Senior / PWD Discount</div>
+                <div style="display:flex;gap:4px;margin-bottom:4px">
+                  <input type="number" id="senior-count" placeholder="No. of SC/PWD" min="1" style="flex:1;padding:6px;border:1px solid var(--paper-edge);border-radius:4px;font-size:12px" />
+                  <input type="number" id="total-persons" placeholder="Total persons" min="1" style="flex:1;padding:6px;border:1px solid var(--paper-edge);border-radius:4px;font-size:12px" />
+                </div>
+                <div style="display:flex;gap:6px">
+                  <button onclick="applySpecial('SENIOR')" style="flex:1;padding:6px;border:1px solid var(--paper-edge);background:#fff;border-radius:4px;font-size:11px;cursor:pointer">👴 Senior</button>
+                  <button onclick="applySpecial('PWD')" style="flex:1;padding:6px;border:1px solid var(--paper-edge);background:#fff;border-radius:4px;font-size:11px;cursor:pointer">♿ PWD</button>
+                </div>
+              </div>
+            </div>
+            <label>Payment Method</label>
+            <div class="method-row" id="method-row">
+              ${["CASH","CARD","GCASH","MAYA"].map(m => `<button type="button" class="method-btn ${m === selectedMethod ? "selected" : ""}" data-method="${m}">${m}</button>`).join("")}
+            </div>
+            <label>Amount Received</label>
+            <input type="number" id="amount-input" placeholder="0.00" step="0.01" />
+            <label>Reference No. (optional)</label>
+            <input type="text" id="ref-input" placeholder="for card / e-wallet" />
+            <button class="primary" id="pay-btn">Record Payment</button>
+          ` : `
+            <button class="secondary" id="close-btn">Done — Clear Screen</button>
+          `}
+        </div>
+      </div>
+    `;
+
+    const calcBtn = document.getElementById("calc-btn");
+    if (calcBtn) calcBtn.addEventListener("click", calculateBill);
+
+    const payBtn = document.getElementById("pay-btn");
+    if (payBtn) payBtn.addEventListener("click", recordPayment);
+
+    const closeBtn = document.getElementById("close-btn");
+    if (closeBtn) closeBtn.addEventListener("click", () => {
+    const orderId = currentOrderId;
+    currentOrderId = null;
+    currentOrder = null;
+    document.getElementById("receipt-area").innerHTML = `<div class="no-selection">Select an order from the left to view its bill.</div>`;
+    loadOrderList();
+    // Open receipt in new tab
+    const url = `/Projects%202026/restaurant-pos/public/receipt.html?orderId=${orderId}`;
+    console.log(url);
+    window.open(url, "_blank");
+    });
+
+    document.querySelectorAll(".method-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        selectedMethod = btn.getAttribute("data-method");
+        renderReceipt();
+      });
+    });
+  }
+
+  async function calculateBill() {
+    try {
+      await api(`/orders/${currentOrderId}/calculate-bill`, { method: "POST" });
+      await refreshReceipt();
+      showToast("Bill calculated.");
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  async function recordPayment() {
+    const amountInput = document.getElementById("amount-input");
+    const refInput = document.getElementById("ref-input");
+    const amount = parseFloat(amountInput.value);
+    if (!amount || amount <= 0) {
+      showToast("Enter a valid amount.");
+      return;
+    }
+    try {
+      const result = await api(`/orders/${currentOrderId}/payments`, {
+        method: "POST",
+        body: JSON.stringify({
+          method: selectedMethod,
+          amount,
+          referenceNo: refInput.value || undefined
+        })
+      });
+      await refreshReceipt();
+      if (result.change > 0) {
+        showToast(`Payment recorded. Change: ₱${result.change.toFixed(2)}`);
+      } else {
+        showToast("Payment recorded.");
+      }
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  function showToast(msg) {
+    const toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 2200);
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  async function applyPromo() {
+    const code = document.getElementById("promo-input")?.value?.trim();
+    if (!code) { showToast("Enter a promo code."); return; }
+    try {
+      await api(`/orders/${currentOrderId}/apply-promo`, {
+        method: "POST",
+        body: JSON.stringify({ code })
+      });
+      await refreshReceipt();
+      showToast(`Promo "${code}" applied!`);
+    } catch (err) { showToast(err.message); }
+  }
+
+  async function applySpecial(type) {
+  const seniorCount = parseInt(document.getElementById("senior-count")?.value) || 0
+  const totalPersons = parseInt(document.getElementById("total-persons")?.value) || 0
+  if (!seniorCount) { showToast("Enter number of seniors/PWDs."); return; }
+  if (!totalPersons) { showToast("Enter total number of persons."); return; }
+  try {
+    const result = await api(`/orders/${currentOrderId}/special-discount`, {
+      method: "POST",
+      body: JSON.stringify({ type, seniorCount, totalPersons })
+    });
+    await refreshReceipt();
+    showToast(`${type} discount applied — ₱${result.discountAmount.toFixed(2)} off`);
+  } catch (err) { showToast(err.message); }
+}
+
+</script>
+
+</body>
+</html>

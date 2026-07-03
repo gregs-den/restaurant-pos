@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Order History</title>
+<style>
+  :root {
+    --bg: #14181a;
+    --panel: #1d2326;
+    --paper: #fbfaf6;
+    --paper-edge: #e3e0d5;
+    --ink: #1c1a16;
+    --accent: #2d8f5f;
+    --muted: #8a9296;
+    --font-display: 'Courier New', monospace;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    font-family: var(--font-body);
+    color: #eee;
+    min-height: 100vh;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    background: var(--panel);
+    border-bottom: 3px solid var(--accent);
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header h1 {
+    font-family: var(--font-display);
+    letter-spacing: 2px;
+    font-size: 20px;
+    margin: 0;
+    text-transform: uppercase;
+  }
+  .filters { display: flex; gap: 8px; align-items: center; }
+  .filters input {
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #2f373a;
+    background: #232a2d;
+    color: #eee;
+    font-size: 13px;
+  }
+  .filters button {
+    padding: 6px 14px;
+    border-radius: 4px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .summary-bar {
+    display: flex;
+    gap: 24px;
+    padding: 16px 28px;
+    background: #1a2022;
+    border-bottom: 1px solid #2a3033;
+    flex-wrap: wrap;
+  }
+  .summary-item .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+  .summary-item .value { font-family: var(--font-display); font-size: 20px; font-weight: bold; color: var(--accent); }
+
+  #list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    padding: 24px 28px;
+  }
+  .empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: var(--muted);
+    padding: 60px 20px;
+  }
+
+  .receipt-card {
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 2px;
+    padding: 16px 16px 14px;
+    box-shadow: 0 5px 0 var(--paper-edge), 0 8px 14px rgba(0,0,0,0.35);
+    font-family: var(--font-display);
+  }
+  .rc-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px dashed var(--paper-edge); padding-bottom: 8px; margin-bottom: 8px; }
+  .rc-table { font-weight: bold; font-size: 15px; }
+  .rc-date { font-size: 11px; color: #6b6356; font-family: var(--font-body); }
+  .rc-items { font-family: var(--font-body); font-size: 12px; color: #4d473d; margin-bottom: 8px; }
+  .rc-items div { padding: 2px 0; }
+  .rc-total { display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; border-top: 1px dashed var(--paper-edge); padding-top: 8px; }
+  .rc-meta { display: flex; justify-content: space-between; font-family: var(--font-body); font-size: 11px; color: #6b6356; margin-top: 6px; }
+  .method-tag {
+    display: inline-block;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: var(--ink);
+    color: var(--paper);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📜 Order History</h1>
+  <div class="filters">
+    <input type="date" id="from-date" />
+    <input type="date" id="to-date" />
+    <button id="filter-btn">Filter</button>
+    <button id="clear-btn" style="background:#444">Clear</button>
+    <button onclick="logout()" style="padding:6px 12px;border-radius:5px;border:none;background:#2a3336;color:#eee;cursor:pointer;font-size:12px">Logout</button>
+  </div>
+</header>
+
+<div class="summary-bar" id="summary-bar"></div>
+
+<div id="list"><div class="empty-state">Loading…</div></div>
+
+<script>
+
+  function logout() {
+  localStorage.removeItem("pos_token");
+  localStorage.removeItem("pos_role");
+  localStorage.removeItem("pos_user");
+  window.location.href = "/Projects%202026/restaurant-pos/public/index.html";
+}
+
+  const API_BASE = "http://localhost:3000";
+  const TOKEN = localStorage.getItem("pos_token");
+  if (!TOKEN) window.location.href = "/";
+
+  document.getElementById("filter-btn").addEventListener("click", () => loadHistory());
+  document.getElementById("clear-btn").addEventListener("click", () => {
+    document.getElementById("from-date").value = "";
+    document.getElementById("to-date").value = "";
+    loadHistory();
+  });
+
+  async function loadHistory() {
+    const from = document.getElementById("from-date").value;
+    const to = document.getElementById("to-date").value;
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+
+    try {
+      const res = await fetch(`${API_BASE}/orders/history?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${TOKEN}` }
+      });
+      const orders = await res.json();
+      renderSummary(orders);
+      renderList(orders);
+    } catch (err) {
+      document.getElementById("list").innerHTML = `<div class="empty-state">Couldn't load order history.</div>`;
+    }
+  }
+
+  function renderSummary(orders) {
+    const totalRevenue = orders.reduce((s, o) => s + Number(o.totalAmount || 0), 0);
+    const totalOrders = orders.length;
+    const avgTicket = totalOrders ? totalRevenue / totalOrders : 0;
+
+    document.getElementById("summary-bar").innerHTML = `
+      <div class="summary-item"><div class="label">Orders</div><div class="value">${totalOrders}</div></div>
+      <div class="summary-item"><div class="label">Total Revenue</div><div class="value">₱${totalRevenue.toFixed(2)}</div></div>
+      <div class="summary-item"><div class="label">Avg. Ticket</div><div class="value">₱${avgTicket.toFixed(2)}</div></div>
+    `;
+  }
+
+  function renderList(orders) {
+    const list = document.getElementById("list");
+    if (!orders.length) {
+      list.innerHTML = `<div class="empty-state">No paid orders in this range.</div>`;
+      return;
+    }
+
+    list.innerHTML = orders.map(o => {
+      const label = o.table ? `Table ${o.table.tableNumber}` : o.orderType.replace("_", " ");
+      const date = new Date(o.updatedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+      const itemsHtml = o.orderItems.map(it => `<div>${it.quantity}× ${escapeHtml(it.menuItem.name)}</div>`).join("");
+      const method = o.payments[0] ? o.payments[0].method : "—";
+
+      return `
+        <div class="receipt-card">
+          <div class="rc-head">
+            <span class="rc-table">${escapeHtml(label)}</span>
+            <span class="rc-date">${date}</span>
+          </div>
+          <div class="rc-items">${itemsHtml}</div>
+          <div class="rc-total"><span>Total</span><span>₱${Number(o.totalAmount).toFixed(2)}</span></div>
+          <div class="rc-meta">
+            <span>Served by ${escapeHtml(o.user.name)}</span>
+            <span class="method-tag">${escapeHtml(method)}</span>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  loadHistory();
+</script>
+
+</body>
+</html>

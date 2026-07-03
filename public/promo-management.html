@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Promo Management</title>
+<style>
+  :root {
+    --bg: #14181a;
+    --panel: #1d2326;
+    --card: #232a2d;
+    --border: #2a3033;
+    --accent: #2d8f5f;
+    --accent-dark: #1f6e47;
+    --accent2: #ff6a3d;
+    --danger: #c4452b;
+    --warn: #e0a72e;
+    --muted: #8a9296;
+    --font-display: 'Courier New', monospace;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); font-family: var(--font-body); color: #eee; min-height: 100vh; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px; background: var(--panel);
+    border-bottom: 3px solid var(--accent); gap: 10px; flex-wrap: wrap;
+  }
+  header h1 { font-family: var(--font-display); letter-spacing: 2px; font-size: 18px; margin: 0; text-transform: uppercase; }
+  .header-right { display: flex; gap: 8px; }
+
+  .main { padding: 24px; }
+
+  /* ---- Special discounts info ---- */
+  .special-card {
+    background: #1f3a2a; border: 1px solid var(--accent);
+    border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .special-card .s-icon { font-size: 28px; }
+  .special-card .s-info { flex: 1; }
+  .special-card .s-title { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+  .special-card .s-desc { font-size: 12px; color: #6fcf97; }
+
+  /* ---- Promo grid ---- */
+  .section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .section-head h2 { margin: 0; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  .promos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+
+  .promo-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 18px; position: relative;
+    overflow: hidden;
+  }
+  .promo-card::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--accent2);
+  }
+  .promo-card.expired::before { background: var(--danger); }
+  .promo-card.maxed::before { background: var(--muted); }
+
+  .promo-code {
+    font-family: var(--font-display); font-size: 20px; font-weight: bold;
+    letter-spacing: 2px; color: var(--accent2); margin-bottom: 6px;
+  }
+  .promo-desc { font-size: 12px; color: var(--muted); margin-bottom: 10px; min-height: 16px; }
+  .promo-value {
+    font-size: 24px; font-weight: bold; color: #eee; margin-bottom: 8px;
+    font-family: var(--font-display);
+  }
+  .promo-meta { font-size: 11px; color: var(--muted); margin-bottom: 12px; line-height: 1.8; }
+  .promo-meta span { display: block; }
+  .usage-bar-wrap { height: 5px; background: var(--border); border-radius: 3px; margin-bottom: 12px; }
+  .usage-bar-fill { height: 100%; background: var(--accent); border-radius: 3px; }
+  .usage-label { font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+
+  .promo-status {
+    display: inline-block; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.5px; padding: 2px 8px; border-radius: 10px; margin-bottom: 12px;
+  }
+  .status-active { background: #1f3a2a; color: #6fcf97; }
+  .status-expired { background: #3a1f1f; color: #eb5757; }
+  .status-maxed { background: #2a2a2a; color: var(--muted); }
+
+  .promo-actions { display: flex; gap: 8px; }
+
+  .btn {
+    padding: 7px 14px; border-radius: 5px; border: none;
+    cursor: pointer; font-size: 12px; font-family: var(--font-body); font-weight: 500;
+  }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-accent:hover { background: var(--accent-dark); }
+  .btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+  .btn-danger:hover { background: var(--danger); color: #fff; }
+  .btn-ghost { background: #2a3336; color: #eee; }
+  .btn-ghost:hover { background: #333d41; }
+  .btn-lg { padding: 10px 20px; font-size: 14px; }
+
+  .empty-state { text-align: center; color: var(--muted); padding: 60px 20px; grid-column: 1/-1; }
+
+  /* ---- Modal ---- */
+  .modal-bg {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 28px; width: 100%; max-width: 440px;
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal h3 { margin: 0 0 20px; font-size: 16px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 9px 10px; border-radius: 5px;
+    border: 1px solid var(--border); background: #1a2022; color: #eee;
+    font-size: 14px; font-family: var(--font-body);
+  }
+  .field .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--accent-dark); color: #fff;
+    padding: 10px 20px; border-radius: 6px; font-size: 13px;
+    opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 200;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎟️ Promo Management</h1>
+  <div class="header-right">
+    <button class="btn btn-accent btn-lg" onclick="openModal()">+ New Promo</button>
+    <button class="btn btn-ghost" onclick="logout()">Logout</button>
+  </div>
+</header>
+
+<div class="main">
+  <!-- Special discounts info -->
+  <div class="special-card">
+    <div class="s-icon">🇵🇭</div>
+    <div class="s-info">
+      <div class="s-title">Senior Citizen & PWD Discount (20%)</div>
+      <div class="s-desc">Applied automatically on the cashier screen. Required by Philippine law (RA 9994 & RA 7277). No promo code needed — cashier selects it directly.</div>
+    </div>
+  </div>
+
+  <!-- Promo codes -->
+  <div class="section-head">
+    <h2>Promo Codes</h2>
+    <span id="promo-count" style="font-size:13px;color:var(--muted)"></span>
+  </div>
+  <div class="promos-grid" id="promos-grid">
+    <div class="empty-state">Loading…</div>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-bg" id="promo-modal">
+  <div class="modal">
+    <h3 id="modal-title">New Promo Code</h3>
+    <div class="field">
+      <label>Promo Code</label>
+      <input type="text" id="p-code" placeholder="e.g. WELCOME10" style="text-transform:uppercase;font-family:var(--font-display);letter-spacing:1px" />
+      <div class="hint">Letters and numbers only. Will be saved in uppercase.</div>
+    </div>
+    <div class="field">
+      <label>Description</label>
+      <input type="text" id="p-desc" placeholder="e.g. 10% off for new customers" />
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Discount Type</label>
+        <select id="p-type" onchange="toggleDiscountType()">
+          <option value="PERCENTAGE">Percentage (%)</option>
+          <option value="FIXED">Fixed Amount (₱)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label id="p-value-label">Discount Value (%)</label>
+        <input type="number" id="p-value" placeholder="e.g. 10" step="0.01" />
+      </div>
+    </div>
+    <div class="field">
+      <label>Minimum Order Amount (₱)</label>
+      <input type="number" id="p-min" placeholder="Leave blank for no minimum" step="0.01" />
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Max Uses</label>
+        <input type="number" id="p-maxuses" placeholder="Leave blank for unlimited" />
+      </div>
+      <div class="field">
+        <label>Expires On</label>
+        <input type="date" id="p-expires" />
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-accent" onclick="savePromo()">Save Promo</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm delete -->
+<div class="modal-bg" id="confirm-modal">
+  <div class="modal">
+    <h3>Delete Promo?</h3>
+    <p id="confirm-msg" style="color:var(--muted);font-size:14px"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-danger" id="confirm-ok-btn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const API_BASE = "http://localhost:3000";
+  const TOKEN = localStorage.getItem("pos_token");
+  if (!TOKEN) window.location.href = "/";
+
+  let promos = [];
+  let editingId = null;
+
+  function logout() {
+    localStorage.removeItem("pos_token");
+    localStorage.removeItem("pos_role");
+    localStorage.removeItem("pos_user");
+    window.location.href = "/Projects%202026/restaurant-pos/public/index.html";
+  }
+
+  async function api(path, options = {}) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN}`, ...(options.headers || {}) }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  }
+
+  async function loadPromos() {
+    try {
+      promos = await api("/promos");
+      renderPromos();
+    } catch (err) {
+      document.getElementById("promos-grid").innerHTML = `<div class="empty-state">Failed to load promos.</div>`;
+    }
+  }
+
+  function renderPromos() {
+    const grid = document.getElementById("promos-grid");
+    document.getElementById("promo-count").textContent = `${promos.length} active promo${promos.length !== 1 ? "s" : ""}`;
+
+    if (!promos.length) {
+      grid.innerHTML = `<div class="empty-state">No promo codes yet. Click "+ New Promo" to create one.</div>`;
+      return;
+    }
+
+    grid.innerHTML = promos.map(p => {
+      const isExpired = p.expiresAt && new Date() > new Date(p.expiresAt);
+      const isMaxed = p.maxUses && p.usedCount >= p.maxUses;
+      const cardClass = isExpired ? "expired" : isMaxed ? "maxed" : "";
+      const statusClass = isExpired ? "status-expired" : isMaxed ? "status-maxed" : "status-active";
+      const statusLabel = isExpired ? "Expired" : isMaxed ? "Limit Reached" : "Active";
+      const usagePct = p.maxUses ? Math.min(100, (p.usedCount / p.maxUses) * 100) : 0;
+      const valueLabel = p.discountType === "PERCENTAGE"
+        ? `${Number(p.discountValue)}% OFF`
+        : `₱${Number(p.discountValue).toFixed(2)} OFF`;
+
+      return `
+        <div class="promo-card ${cardClass}">
+          <div class="promo-code">${escapeHtml(p.code)}</div>
+          <div class="promo-desc">${escapeHtml(p.description || "")}</div>
+          <div class="promo-value">${valueLabel}</div>
+          <span class="promo-status ${statusClass}">${statusLabel}</span>
+          <div class="promo-meta">
+            ${p.minOrderAmount ? `<span>Min. order: ₱${Number(p.minOrderAmount).toFixed(2)}</span>` : ""}
+            ${p.expiresAt ? `<span>Expires: ${new Date(p.expiresAt).toLocaleDateString("en-PH")}</span>` : "<span>No expiry</span>"}
+          </div>
+          ${p.maxUses ? `
+            <div class="usage-bar-wrap"><div class="usage-bar-fill" style="width:${usagePct}%"></div></div>
+            <div class="usage-label">Used ${p.usedCount} of ${p.maxUses} times</div>
+          ` : `<div class="usage-label">Used ${p.usedCount} time${p.usedCount !== 1 ? "s" : ""} · Unlimited</div>`}
+          <div class="promo-actions">
+            <button class="btn btn-ghost" onclick="editPromo('${p.id}')">✏️ Edit</button>
+            <button class="btn btn-danger" onclick="confirmDelete('${p.id}', '${escapeHtml(p.code)}')">🗑️ Delete</button>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function toggleDiscountType() {
+    const type = document.getElementById("p-type").value;
+    document.getElementById("p-value-label").textContent = type === "PERCENTAGE" ? "Discount Value (%)" : "Discount Value (₱)";
+  }
+
+  function openModal(prefill = null) {
+    editingId = prefill ? prefill.id : null;
+    document.getElementById("modal-title").textContent = prefill ? "Edit Promo" : "New Promo Code";
+    document.getElementById("p-code").value = prefill ? prefill.code : "";
+    document.getElementById("p-code").disabled = !!prefill; // can't change code once created
+    document.getElementById("p-desc").value = prefill ? (prefill.description || "") : "";
+    document.getElementById("p-type").value = prefill ? prefill.discountType : "PERCENTAGE";
+    document.getElementById("p-value").value = prefill ? Number(prefill.discountValue) : "";
+    document.getElementById("p-min").value = prefill && prefill.minOrderAmount ? Number(prefill.minOrderAmount) : "";
+    document.getElementById("p-maxuses").value = prefill && prefill.maxUses ? prefill.maxUses : "";
+    document.getElementById("p-expires").value = prefill && prefill.expiresAt ? prefill.expiresAt.slice(0, 10) : "";
+    toggleDiscountType();
+    document.getElementById("promo-modal").classList.add("open");
+  }
+
+  function closeModal() { document.getElementById("promo-modal").classList.remove("open"); }
+
+  function editPromo(id) {
+    const promo = promos.find(p => p.id === id);
+    if (promo) openModal(promo);
+  }
+
+  async function savePromo() {
+    const code = document.getElementById("p-code").value.trim().toUpperCase();
+    const discountValue = parseFloat(document.getElementById("p-value").value);
+    const discountType = document.getElementById("p-type").value;
+
+    if (!editingId && !code) { showToast("Promo code is required."); return; }
+    if (!discountValue || discountValue <= 0) { showToast("Enter a valid discount value."); return; }
+    if (discountType === "PERCENTAGE" && discountValue > 100) { showToast("Percentage can't exceed 100%."); return; }
+
+    const body = {
+      code,
+      description: document.getElementById("p-desc").value.trim() || undefined,
+      discountType,
+      discountValue,
+      minOrderAmount: parseFloat(document.getElementById("p-min").value) || undefined,
+      maxUses: parseInt(document.getElementById("p-maxuses").value) || undefined,
+      expiresAt: document.getElementById("p-expires").value || undefined,
+    };
+
+    try {
+      if (editingId) {
+        await api(`/promos/${editingId}`, { method: "PUT", body: JSON.stringify(body) });
+        showToast("Promo updated.");
+      } else {
+        await api("/promos", { method: "POST", body: JSON.stringify(body) });
+        showToast("Promo created.");
+      }
+      closeModal();
+      await loadPromos();
+    } catch (err) { showToast(err.message); }
+  }
+
+  function confirmDelete(id, code) {
+    document.getElementById("confirm-msg").textContent = `"${code}" will be deactivated and can no longer be used.`;
+    document.getElementById("confirm-ok-btn").onclick = async () => {
+      try {
+        await api(`/promos/${id}`, { method: "DELETE" });
+        showToast("Promo deleted.");
+        closeConfirm();
+        await loadPromos();
+      } catch (err) { showToast(err.message); }
+    };
+    document.getElementById("confirm-modal").classList.add("open");
+  }
+
+  function closeConfirm() { document.getElementById("confirm-modal").classList.remove("open"); }
+
+  function showToast(msg) {
+    const toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 2500);
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  document.querySelectorAll(".modal-bg").forEach(bg => {
+    bg.addEventListener("click", e => { if (e.target === bg) bg.classList.remove("open"); });
+  });
+
+  loadPromos();
+</script>
+</body>
+</html>

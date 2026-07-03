@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Menu Management</title>
+<style>
+  :root {
+    --bg: #14181a;
+    --panel: #1d2326;
+    --card: #232a2d;
+    --border: #2a3033;
+    --accent: #2d8f5f;
+    --accent-dark: #1f6e47;
+    --danger: #c4452b;
+    --warn: #e0a72e;
+    --muted: #8a9296;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-display: 'Courier New', monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); font-family: var(--font-body); color: #eee; min-height: 100vh; }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    background: var(--panel);
+    border-bottom: 3px solid var(--accent);
+  }
+  header h1 { font-family: var(--font-display); letter-spacing: 2px; font-size: 20px; margin: 0; text-transform: uppercase; }
+
+  .layout { display: grid; grid-template-columns: 260px 1fr; min-height: calc(100vh - 64px); }
+
+  /* ---- Sidebar: categories ---- */
+  .sidebar {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 16px;
+    overflow-y: auto;
+  }
+  .sidebar-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .sidebar-head h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 0; }
+
+  .cat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-bottom: 4px;
+    border: 1px solid transparent;
+  }
+  .cat-item:hover { background: #2a3336; }
+  .cat-item.active { background: #243228; border-color: var(--accent); }
+  .cat-item .cat-name { font-size: 14px; }
+  .cat-item .cat-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s; }
+  .cat-item:hover .cat-actions { opacity: 1; }
+  .cat-item.active .cat-actions { opacity: 1; }
+  .icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 3px 5px;
+    border-radius: 3px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .icon-btn:hover { background: #3a4448; color: #eee; }
+  .icon-btn.danger:hover { background: var(--danger); color: #fff; }
+
+  /* ---- Main: menu items ---- */
+  .main-area { padding: 24px 28px; overflow-y: auto; }
+  .main-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .main-head h2 { margin: 0; font-size: 18px; }
+
+  .items-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+
+  .item-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+  }
+  .item-card:hover { border-color: var(--accent); }
+  .item-card.unavailable { opacity: 0.5; }
+
+  .item-img {
+    height: 100px;
+    background: #1a2022;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+  }
+  .item-body { padding: 12px; }
+  .item-name { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .item-desc { font-size: 12px; color: var(--muted); margin-bottom: 8px; min-height: 16px; }
+  .item-price { font-family: var(--font-display); font-size: 16px; color: var(--accent); font-weight: bold; }
+  .item-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-top: 1px solid var(--border);
+  }
+  .avail-toggle {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-body);
+  }
+  .avail-toggle.on { background: #1f3a2a; color: #6fcf97; }
+  .avail-toggle.off { background: #3a2a1f; color: #f2994a; }
+  .item-actions { display: flex; gap: 4px; }
+
+  .empty-state { text-align: center; color: var(--muted); padding: 60px 20px; grid-column: 1/-1; }
+
+  /* ---- Buttons ---- */
+  .btn {
+    padding: 8px 16px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: var(--font-body);
+    font-weight: 500;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-dark); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-ghost { background: #2a3336; color: #eee; }
+  .btn-ghost:hover { background: #333d41; }
+
+  /* ---- Modal ---- */
+  .modal-bg {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 28px;
+    width: 100%;
+    max-width: 460px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal h3 { margin: 0 0 20px; font-size: 16px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+  .field input, .field textarea, .field select {
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: #1a2022;
+    color: #eee;
+    font-size: 14px;
+    font-family: var(--font-body);
+  }
+  .field textarea { resize: vertical; min-height: 72px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--accent-dark); color: #fff;
+    padding: 10px 20px; border-radius: 6px; font-size: 13px;
+    opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 200;
+  }
+  .toast.show { opacity: 1; }
+  .badge-count {
+    background: var(--accent);
+    color: #fff;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    margin-left: 4px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🍽️ Menu Management</h1>
+  <div style="font-size:13px;color:var(--muted)" id="header-user"></div>
+  <button onclick="logout()" style="padding:6px 12px;border-radius:5px;border:none;background:#2a3336;color:#eee;cursor:pointer;font-size:12px">Logout</button>
+</header>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-head">
+      <h2>Categories</h2>
+      <button class="btn btn-primary" style="padding:5px 10px;font-size:12px" onclick="openCatModal()">+ Add</button>
+    </div>
+    <div id="cat-list"></div>
+  </div>
+
+  <!-- Main -->
+  <div class="main-area">
+    <div class="main-head">
+      <h2 id="main-title">Select a category</h2>
+      <button class="btn btn-primary" id="add-item-btn" style="display:none" onclick="openItemModal()">+ Add Item</button>
+    </div>
+    <div class="items-grid" id="items-grid">
+      <div class="empty-state">👈 Select a category from the left to manage its items.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Category Modal -->
+<div class="modal-bg" id="cat-modal">
+  <div class="modal">
+    <h3 id="cat-modal-title">Add Category</h3>
+    <div class="field"><label>Name</label><input type="text" id="cat-name" placeholder="e.g. Main Dishes" /></div>
+    <div class="field"><label>Description</label><input type="text" id="cat-desc" placeholder="optional" /></div>
+    <div class="field"><label>Sort Order</label><input type="number" id="cat-sort" value="0" /></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeCatModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCategory()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Item Modal -->
+<div class="modal-bg" id="item-modal">
+  <div class="modal">
+    <h3 id="item-modal-title">Add Menu Item</h3>
+    <div class="field"><label>Name</label><input type="text" id="item-name" placeholder="e.g. Adobo" /></div>
+    <div class="field"><label>Description</label><textarea id="item-desc" placeholder="optional"></textarea></div>
+    <div class="field"><label>Price (₱)</label><input type="number" id="item-price" placeholder="0.00" step="0.01" /></div>
+    <div class="field"><label>Category</label>
+      <select id="item-category"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeItemModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveItem()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Delete Modal -->
+<div class="modal-bg" id="confirm-modal">
+  <div class="modal">
+    <h3 id="confirm-title">Are you sure?</h3>
+    <p id="confirm-msg" style="color:var(--muted);font-size:14px"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-danger" id="confirm-ok-btn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+
+function logout() {
+  localStorage.removeItem("pos_token");
+  localStorage.removeItem("pos_role");
+  localStorage.removeItem("pos_user");
+  window.location.href = "/Projects%202026/restaurant-pos/public/index.html";
+}
+
+  const API_BASE = "http://localhost:3000";
+  const TOKEN = localStorage.getItem("pos_token");
+  if (!TOKEN) window.location.href = "/";
+
+  let categories = [];
+  let currentCatId = null;
+  let editingCatId = null;
+  let editingItemId = null;
+
+  async function api(path, options = {}) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${TOKEN}`,
+        ...(options.headers || {})
+      }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  }
+
+  // ---- Categories ----
+  async function loadCategories() {
+    categories = await api("/categories");
+    renderCategories();
+    populateCategorySelect();
+  }
+
+  function renderCategories() {
+    const list = document.getElementById("cat-list");
+    if (!categories.length) {
+      list.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:8px">No categories yet.</div>`;
+      return;
+    }
+    list.innerHTML = categories.map(c => `
+      <div class="cat-item ${c.id === currentCatId ? 'active' : ''}" data-id="${c.id}">
+        <span class="cat-name">${escapeHtml(c.name)}</span>
+        <div class="cat-actions">
+          <button class="icon-btn" onclick="event.stopPropagation(); editCategory('${c.id}')">✏️</button>
+          <button class="icon-btn danger" onclick="event.stopPropagation(); confirmDeleteCategory('${c.id}', '${escapeHtml(c.name)}')">🗑️</button>
+        </div>
+      </div>
+    `).join("");
+
+    list.querySelectorAll(".cat-item").forEach(el => {
+      el.addEventListener("click", () => selectCategory(el.getAttribute("data-id")));
+    });
+  }
+
+  function populateCategorySelect() {
+    const sel = document.getElementById("item-category");
+    sel.innerHTML = categories.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
+    if (currentCatId) sel.value = currentCatId;
+  }
+
+  async function selectCategory(id) {
+    currentCatId = id;
+    renderCategories();
+    const cat = categories.find(c => c.id === id);
+    document.getElementById("main-title").textContent = cat ? cat.name : "Items";
+    document.getElementById("add-item-btn").style.display = "inline-block";
+    await loadItems(id);
+  }
+
+  function openCatModal(prefill = null) {
+    editingCatId = prefill ? prefill.id : null;
+    document.getElementById("cat-modal-title").textContent = prefill ? "Edit Category" : "Add Category";
+    document.getElementById("cat-name").value = prefill ? prefill.name : "";
+    document.getElementById("cat-desc").value = prefill ? (prefill.description || "") : "";
+    document.getElementById("cat-sort").value = prefill ? prefill.sortOrder : 0;
+    document.getElementById("cat-modal").classList.add("open");
+  }
+
+  function closeCatModal() { document.getElementById("cat-modal").classList.remove("open"); }
+
+  function editCategory(id) {
+    const cat = categories.find(c => c.id === id);
+    if (cat) openCatModal(cat);
+  }
+
+  async function saveCategory() {
+    const name = document.getElementById("cat-name").value.trim();
+    if (!name) { showToast("Name is required."); return; }
+    const body = {
+      name,
+      description: document.getElementById("cat-desc").value.trim() || undefined,
+      sortOrder: parseInt(document.getElementById("cat-sort").value) || 0,
+    };
+    try {
+      if (editingCatId) {
+        await api(`/categories/${editingCatId}`, { method: "PUT", body: JSON.stringify(body) });
+        showToast("Category updated.");
+      } else {
+        await api("/categories", { method: "POST", body: JSON.stringify(body) });
+        showToast("Category created.");
+      }
+      closeCatModal();
+      await loadCategories();
+    } catch (err) { showToast(err.message); }
+  }
+
+  function confirmDeleteCategory(id, name) {
+    document.getElementById("confirm-title").textContent = "Delete Category?";
+    document.getElementById("confirm-msg").textContent = `"${name}" and all its items will be deactivated.`;
+    document.getElementById("confirm-ok-btn").onclick = async () => {
+      try {
+        await api(`/categories/${id}`, { method: "DELETE" });
+        showToast("Category deleted.");
+        if (currentCatId === id) { currentCatId = null; document.getElementById("items-grid").innerHTML = `<div class="empty-state">Select a category.</div>`; document.getElementById("add-item-btn").style.display = "none"; document.getElementById("main-title").textContent = "Select a category"; }
+        closeConfirm();
+        await loadCategories();
+      } catch (err) { showToast(err.message); }
+    };
+    document.getElementById("confirm-modal").classList.add("open");
+  }
+
+  // ---- Menu Items ----
+  async function loadItems(catId) {
+    const grid = document.getElementById("items-grid");
+    grid.innerHTML = `<div class="empty-state">Loading…</div>`;
+    try {
+      const allItems = await api("/menu-items");
+      const items = allItems.filter(i => i.categoryId === catId);
+      renderItems(items);
+    } catch (err) { grid.innerHTML = `<div class="empty-state">Failed to load items.</div>`; }
+  }
+
+  function renderItems(items) {
+    const grid = document.getElementById("items-grid");
+    if (!items.length) {
+      grid.innerHTML = `<div class="empty-state">No items in this category yet. Click "+ Add Item" to start.</div>`;
+      return;
+    }
+    grid.innerHTML = items.map(item => `
+      <div class="item-card ${item.isAvailable ? '' : 'unavailable'}">
+        <div class="item-img">${getEmoji(item.name)}</div>
+        <div class="item-body">
+          <div class="item-name">${escapeHtml(item.name)}</div>
+          <div class="item-desc">${escapeHtml(item.description || '')}</div>
+          <div class="item-price">₱${Number(item.price).toFixed(2)}</div>
+        </div>
+        <div class="item-footer">
+          <button class="avail-toggle ${item.isAvailable ? 'on' : 'off'}" onclick="toggleAvailability('${item.id}')">
+            ${item.isAvailable ? '✅ Available' : '❌ Unavailable'}
+          </button>
+          <div class="item-actions">
+            <button class="icon-btn" onclick="editItem('${item.id}')">✏️</button>
+            <button class="icon-btn danger" onclick="confirmDeleteItem('${item.id}', '${escapeHtml(item.name)}')">🗑️</button>
+          </div>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  function openItemModal(prefill = null) {
+    editingItemId = prefill ? prefill.id : null;
+    document.getElementById("item-modal-title").textContent = prefill ? "Edit Menu Item" : "Add Menu Item";
+    document.getElementById("item-name").value = prefill ? prefill.name : "";
+    document.getElementById("item-desc").value = prefill ? (prefill.description || "") : "";
+    document.getElementById("item-price").value = prefill ? Number(prefill.price).toFixed(2) : "";
+    populateCategorySelect();
+    if (prefill) document.getElementById("item-category").value = prefill.categoryId;
+    document.getElementById("item-modal").classList.add("open");
+  }
+
+  function closeItemModal() { document.getElementById("item-modal").classList.remove("open"); }
+
+  async function editItem(id) {
+    try {
+      const item = await api(`/menu-items/${id}`);
+      openItemModal(item);
+    } catch (err) { showToast(err.message); }
+  }
+
+  async function saveItem() {
+    const name = document.getElementById("item-name").value.trim();
+    const price = parseFloat(document.getElementById("item-price").value);
+    const categoryId = document.getElementById("item-category").value;
+    if (!name) { showToast("Name is required."); return; }
+    if (!price || price <= 0) { showToast("Enter a valid price."); return; }
+    if (!categoryId) { showToast("Select a category."); return; }
+
+    const body = {
+      name,
+      description: document.getElementById("item-desc").value.trim() || undefined,
+      price,
+      categoryId,
+    };
+    try {
+      if (editingItemId) {
+        await api(`/menu-items/${editingItemId}`, { method: "PUT", body: JSON.stringify(body) });
+        showToast("Item updated.");
+      } else {
+        await api("/menu-items", { method: "POST", body: JSON.stringify(body) });
+        showToast("Item created.");
+      }
+      closeItemModal();
+      if (currentCatId) await loadItems(currentCatId);
+    } catch (err) { showToast(err.message); }
+  }
+
+  async function toggleAvailability(id) {
+    try {
+      await api(`/menu-items/${id}/toggle`, { method: "PATCH" });
+      if (currentCatId) await loadItems(currentCatId);
+    } catch (err) { showToast(err.message); }
+  }
+
+  function confirmDeleteItem(id, name) {
+    document.getElementById("confirm-title").textContent = "Delete Menu Item?";
+    document.getElementById("confirm-msg").textContent = `"${name}" will be deactivated and hidden from the menu.`;
+    document.getElementById("confirm-ok-btn").onclick = async () => {
+      try {
+        await api(`/menu-items/${id}`, { method: "DELETE" });
+        showToast("Item deleted.");
+        closeConfirm();
+        if (currentCatId) await loadItems(currentCatId);
+      } catch (err) { showToast(err.message); }
+    };
+    document.getElementById("confirm-modal").classList.add("open");
+  }
+
+  // ---- Confirm modal ----
+  function closeConfirm() { document.getElementById("confirm-modal").classList.remove("open"); }
+
+  // ---- Helpers ----
+  function getEmoji(name) {
+    const n = name.toLowerCase();
+    if (n.includes("adobo") || n.includes("pork") || n.includes("meat")) return "🍖";
+    if (n.includes("chicken")) return "🍗";
+    if (n.includes("rice")) return "🍚";
+    if (n.includes("fish") || n.includes("seafood") || n.includes("bangus")) return "🐟";
+    if (n.includes("drink") || n.includes("juice") || n.includes("soda")) return "🥤";
+    if (n.includes("coffee") || n.includes("tea")) return "☕";
+    if (n.includes("cake") || n.includes("dessert") || n.includes("ice cream")) return "🍰";
+    if (n.includes("soup") || n.includes("sinigang") || n.includes("bulalo")) return "🍲";
+    if (n.includes("pasta") || n.includes("noodle") || n.includes("pancit")) return "🍝";
+    if (n.includes("burger") || n.includes("sandwich")) return "🍔";
+    if (n.includes("pizza")) return "🍕";
+    if (n.includes("salad")) return "🥗";
+    return "🍽️";
+  }
+
+  function showToast(msg) {
+    const toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 2200);
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // Close modals on background click
+  document.querySelectorAll(".modal-bg").forEach(bg => {
+    bg.addEventListener("click", e => { if (e.target === bg) { bg.classList.remove("open"); } });
+  });
+
+  loadCategories();
+</script>
+</body>
+</html>

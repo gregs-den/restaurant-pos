@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>Waiter — Order Taking</title>
+<style>
+  :root {
+    --bg: #14181a;
+    --panel: #1d2326;
+    --card: #232a2d;
+    --border: #2a3033;
+    --accent: #2d8f5f;
+    --accent-dark: #1f6e47;
+    --accent2: #ff6a3d;
+    --muted: #8a9296;
+    --danger: #c4452b;
+    --font-display: 'Courier New', monospace;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; background: var(--bg); font-family: var(--font-body); color: #eee; min-height: 100vh; max-width: 100vw; overflow-x: hidden; }
+
+  /* ---- Header ---- */
+  header {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px;
+    background: var(--panel);
+    border-bottom: 3px solid var(--accent);
+  }
+  header h1 { font-family: var(--font-display); letter-spacing: 1px; font-size: 17px; margin: 0; text-transform: uppercase; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .cart-btn {
+    position: relative;
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: var(--font-body);
+    font-weight: 600;
+  }
+  .cart-count {
+    position: absolute; top: -6px; right: -6px;
+    background: var(--accent2); color: #fff;
+    font-size: 10px; font-weight: bold;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ---- Views ---- */
+  .view { display: none; padding: 16px; }
+  .view.active { display: block; }
+
+  /* ---- Table selection ---- */
+  .view-title { font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
+  .tables-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 10px; }
+  .table-btn {
+    aspect-ratio: 1;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    cursor: pointer;
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: bold;
+    transition: transform 0.1s;
+  }
+  .table-btn:active { transform: scale(0.95); }
+  .table-btn.AVAILABLE { background: #1f3a2a; color: #6fcf97; border-color: #2d6b4a; }
+  .table-btn.OCCUPIED { background: #3a2a1f; color: #f2994a; border-color: #6b4a2d; }
+  .table-btn.RESERVED { background: #2a2a3a; color: #9b9ef7; border-color: #4a4a6b; }
+  .table-btn.BILLING { background: #3a1f1f; color: #eb5757; border-color: #6b2d2d; }
+  .table-btn .t-status { font-size: 10px; font-family: var(--font-body); margin-top: 4px; opacity: 0.8; font-weight: 400; }
+  .table-btn.selected { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  /* ---- Order type selector ---- */
+  .order-type-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .type-btn {
+    flex: 1; padding: 10px; border-radius: 8px;
+    border: 2px solid var(--border);
+    background: var(--card); color: var(--muted);
+    font-size: 13px; cursor: pointer;
+    font-family: var(--font-body); text-align: center;
+  }
+  .type-btn.selected { border-color: var(--accent); color: var(--accent); background: #1f3a2a; }
+
+  /* ---- Menu ---- */
+  .cat-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 14px; scrollbar-width: none; }
+  .cat-scroll::-webkit-scrollbar { display: none; }
+  .cat-chip {
+    white-space: nowrap; padding: 7px 14px;
+    border-radius: 20px; border: 1px solid var(--border);
+    background: var(--card); color: var(--muted);
+    font-size: 13px; cursor: pointer; flex-shrink: 0;
+  }
+  .cat-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  @media (min-width: 600px) { .menu-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); } }
+
+  .menu-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.1s;
+    position: relative;
+  }
+  .menu-item:active { transform: scale(0.97); }
+  .menu-item:hover { border-color: var(--accent); }
+  .menu-item.unavailable { opacity: 0.4; pointer-events: none; }
+  .menu-item.in-cart { border-color: var(--accent); }
+
+  .item-emoji { height: 80px; display: flex; align-items: center; justify-content: center; font-size: 32px; background: #1a2022; }
+  .item-info { padding: 10px; }
+  .item-name { font-size: 13px; font-weight: 600; margin-bottom: 3px; line-height: 1.3; }
+  .item-price { font-family: var(--font-display); font-size: 14px; color: var(--accent); }
+  .item-unavail { font-size: 10px; color: var(--danger); }
+
+  .cart-badge {
+    position: absolute; top: 6px; right: 6px;
+    background: var(--accent); color: #fff;
+    font-size: 11px; font-weight: bold;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    display: none; align-items: center; justify-content: center;
+  }
+  .cart-badge.show { display: flex; }
+
+  /* ---- Cart / Order summary ---- */
+  .cart-empty { text-align: center; color: var(--muted); padding: 40px 20px; }
+  .cart-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 0; border-bottom: 1px solid var(--border);
+  }
+  .cart-item:last-of-type { border-bottom: none; }
+  .ci-name { flex: 1; font-size: 14px; }
+  .ci-note { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .qty-ctrl { display: flex; align-items: center; gap: 8px; }
+  .qty-btn {
+    width: 28px; height: 28px;
+    border-radius: 50%; border: none;
+    background: #2a3336; color: #eee;
+    font-size: 16px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .qty-btn:active { background: var(--accent); }
+  .qty-num { font-family: var(--font-display); font-size: 15px; min-width: 20px; text-align: center; }
+  .ci-price { font-family: var(--font-display); font-size: 13px; color: var(--accent); min-width: 60px; text-align: right; }
+
+  .note-input {
+    width: 100%; padding: 6px 8px;
+    border-radius: 5px; border: 1px solid var(--border);
+    background: #1a2022; color: #eee;
+    font-size: 12px; font-family: var(--font-body);
+    margin-top: 4px;
+  }
+
+  .cart-total {
+    display: flex; justify-content: space-between;
+    font-family: var(--font-display); font-size: 16px;
+    font-weight: bold; padding: 14px 0 0;
+    border-top: 1px dashed var(--border);
+    margin-top: 8px;
+  }
+
+  .selected-table-info {
+    background: #1f3a2a; border: 1px solid var(--accent);
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 13px; margin-bottom: 16px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .change-link { font-size: 12px; color: var(--accent); cursor: pointer; text-decoration: underline; }
+
+  .btn-full {
+    width: 100%; padding: 14px;
+    border-radius: 8px; border: none;
+    font-size: 15px; font-weight: 700;
+    cursor: pointer; font-family: var(--font-body);
+    margin-top: 10px;
+  }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-accent:hover { background: var(--accent-dark); }
+  .btn-accent:disabled { background: #444; cursor: not-allowed; }
+  .btn-ghost { background: #2a3336; color: #eee; }
+
+  /* ---- Bottom nav ---- */
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    display: flex;
+    z-index: 50;
+  }
+  .nav-btn {
+    flex: 1; padding: 12px 8px;
+    text-align: center; cursor: pointer;
+    font-size: 11px; color: var(--muted);
+    border: none; background: none;
+    font-family: var(--font-body);
+  }
+  .nav-btn.active { color: var(--accent); }
+  .nav-btn .nav-icon { font-size: 20px; display: block; margin-bottom: 2px; }
+
+  .pb { padding-bottom: 80px; }
+
+  /* ---- Toast ---- */
+  .toast {
+    position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%);
+    background: #333; color: #fff;
+    padding: 10px 20px; border-radius: 6px; font-size: 13px;
+    opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 200;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: var(--accent-dark); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🍽️ Order</h1>
+  <div class="header-right">
+    <button onclick="logout()" style="padding:6px 12px;border-radius:5px;border:none;background:#2a3336;color:#eee;cursor:pointer;font-size:12px">Logout</button>
+    <button class="cart-btn" onclick="goTo('cart')">
+      🛒 Cart
+      <span class="cart-count" id="cart-count" style="display:none">0</span>
+    </button>
+  </div>
+</header>
+
+<!-- View: Tables -->
+<div class="view active pb" id="view-tables">
+  <div class="view-title">Select Table or Order Type</div>
+
+  <div class="order-type-row">
+    <div class="type-btn selected" data-type="DINE_IN" onclick="selectType(this)">🪑 Dine In</div>
+    <div class="type-btn" data-type="TAKEOUT" onclick="selectType(this)">🥡 Takeout</div>
+    <div class="type-btn" data-type="DELIVERY" onclick="selectType(this)">🛵 Delivery</div>
+  </div>
+
+  <div id="table-section">
+    <div class="view-title" style="margin-top:8px">Tables</div>
+    <div class="tables-grid" id="tables-grid"></div>
+  </div>
+
+  <button class="btn-full btn-accent" style="margin-top:20px" onclick="proceedToMenu()">
+    Browse Menu →
+  </button>
+</div>
+
+<!-- View: Menu -->
+<div class="view pb" id="view-menu">
+  <div class="cat-scroll" id="cat-scroll"></div>
+  <div class="menu-grid" id="menu-grid"></div>
+</div>
+
+<!-- View: Cart -->
+<div class="view pb" id="view-cart">
+  <div id="selected-table-info"></div>
+  <div id="cart-items"></div>
+  <button class="btn-full btn-accent" id="send-order-btn" onclick="sendOrder()" disabled>
+    Send to Kitchen
+  </button>
+  <button class="btn-full btn-ghost" style="margin-top:8px" onclick="goTo('menu')">
+    + Add More Items
+  </button>
+</div>
+
+<!-- Bottom Nav -->
+<div class="bottom-nav">
+  <button class="nav-btn active" id="nav-tables" onclick="goTo('tables')">
+    <span class="nav-icon">🪑</span>Tables
+  </button>
+  <button class="nav-btn" id="nav-menu" onclick="goTo('menu')">
+    <span class="nav-icon">🍽️</span>Menu
+  </button>
+  <button class="nav-btn" id="nav-cart" onclick="goTo('cart')">
+    <span class="nav-icon">🛒</span>Cart
+  </button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+
+function logout() {
+  localStorage.removeItem("pos_token");
+  localStorage.removeItem("pos_role");
+  localStorage.removeItem("pos_user");
+  window.location.href = "/Projects%202026/restaurant-pos/public/index.html";
+}
+
+  const API_BASE = "http://localhost:3000";
+  const TOKEN = localStorage.getItem("pos_token");
+  if (!TOKEN) window.location.href = "/";
+
+  let tables = [];
+  let categories = [];
+  let menuItems = [];
+  let cart = []; // { menuItemId, name, price, quantity, notes }
+  let selectedTableId = null;
+  let selectedTableLabel = null;
+  let selectedType = "DINE_IN";
+  let activeCatId = null;
+
+  async function api(path, options = {}) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${TOKEN}`,
+        ...(options.headers || {})
+      }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  }
+
+  // ---- Init ----
+  async function init() {
+    try {
+      [tables, categories, menuItems] = await Promise.all([
+        api("/tables"),
+        api("/categories"),
+        api("/menu-items"),
+      ]);
+      renderTables();
+      renderCategories();
+    } catch (err) {
+      showToast("Failed to load data.");
+    }
+  }
+
+  // ---- Tables ----
+  function renderTables() {
+    const grid = document.getElementById("tables-grid");
+    if (!tables.length) {
+      grid.innerHTML = `<div style="color:var(--muted);font-size:13px;grid-column:1/-1">No tables set up yet.</div>`;
+      return;
+    }
+    grid.innerHTML = tables.map(t => `
+      <div class="table-btn ${t.status} ${t.id === selectedTableId ? 'selected' : ''}" onclick="selectTable('${t.id}', '${t.tableNumber}')">
+        ${escapeHtml(t.tableNumber)}
+        <div class="t-status">${t.status.toLowerCase()}</div>
+      </div>
+    `).join("");
+  }
+
+  function selectTable(id, number) {
+    selectedTableId = id;
+    selectedTableLabel = `Table ${number}`;
+    renderTables();
+    showToast(`${selectedTableLabel} selected`);
+  }
+
+  function selectType(el) {
+    document.querySelectorAll(".type-btn").forEach(b => b.classList.remove("selected"));
+    el.classList.add("selected");
+    selectedType = el.getAttribute("data-type");
+    const tableSection = document.getElementById("table-section");
+    tableSection.style.display = selectedType === "DINE_IN" ? "block" : "none";
+    if (selectedType !== "DINE_IN") selectedTableId = null;
+  }
+
+  function proceedToMenu() {
+    if (selectedType === "DINE_IN" && !selectedTableId) {
+      showToast("Please select a table first.");
+      return;
+    }
+    goTo("menu");
+  }
+
+  // ---- Menu ----
+  function renderCategories() {
+    const scroll = document.getElementById("cat-scroll");
+    scroll.innerHTML = `<div class="cat-chip active" data-id="ALL" onclick="filterCat(this, 'ALL')">All</div>` +
+      categories.map(c => `<div class="cat-chip" data-id="${c.id}" onclick="filterCat(this, '${c.id}')">${escapeHtml(c.name)}</div>`).join("");
+    renderMenuItems("ALL");
+  }
+
+  function filterCat(el, catId) {
+    document.querySelectorAll(".cat-chip").forEach(c => c.classList.remove("active"));
+    el.classList.add("active");
+    activeCatId = catId;
+    renderMenuItems(catId);
+  }
+
+  function renderMenuItems(catId) {
+    const grid = document.getElementById("menu-grid");
+    const filtered = catId === "ALL" ? menuItems : menuItems.filter(i => i.categoryId === catId);
+    if (!filtered.length) {
+      grid.innerHTML = `<div style="color:var(--muted);font-size:13px;grid-column:1/-1;padding:20px 0">No items in this category.</div>`;
+      return;
+    }
+    grid.innerHTML = filtered.map(item => {
+      const inCart = cart.find(c => c.menuItemId === item.id);
+      return `
+        <div class="menu-item ${item.isAvailable ? '' : 'unavailable'} ${inCart ? 'in-cart' : ''}" onclick="addToCart('${item.id}')">
+          <div class="item-emoji">${getEmoji(item.name)}</div>
+          <div class="item-info">
+            <div class="item-name">${escapeHtml(item.name)}</div>
+            <div class="item-price">₱${Number(item.price).toFixed(2)}</div>
+            ${!item.isAvailable ? `<div class="item-unavail">Unavailable</div>` : ""}
+          </div>
+          ${inCart ? `<div class="cart-badge show">${inCart.quantity}</div>` : `<div class="cart-badge"></div>`}
+        </div>
+      `;
+    }).join("");
+  }
+
+  function addToCart(menuItemId) {
+    const item = menuItems.find(i => i.id === menuItemId);
+    if (!item) return;
+    const existing = cart.find(c => c.menuItemId === menuItemId);
+    if (existing) {
+      existing.quantity++;
+    } else {
+      cart.push({ menuItemId, name: item.name, price: Number(item.price), quantity: 1, notes: "" });
+    }
+    updateCartCount();
+    renderMenuItems(activeCatId || "ALL");
+    showToast(`${item.name} added`);
+  }
+
+  // ---- Cart ----
+  function updateCartCount() {
+    const total = cart.reduce((s, i) => s + i.quantity, 0);
+    const badge = document.getElementById("cart-count");
+    if (total > 0) { badge.style.display = "flex"; badge.textContent = total; }
+    else { badge.style.display = "none"; }
+  }
+
+  function renderCart() {
+    // Table info
+    const tableInfo = document.getElementById("selected-table-info");
+    const label = selectedType === "DINE_IN" && selectedTableLabel
+      ? selectedTableLabel
+      : selectedType.replace("_", " ");
+    tableInfo.innerHTML = `
+      <div class="selected-table-info">
+        <span>📍 ${escapeHtml(label)} — ${escapeHtml(selectedType.replace("_", " "))}</span>
+        <span class="change-link" onclick="goTo('tables')">Change</span>
+      </div>
+    `;
+
+    // Items
+    const cartDiv = document.getElementById("cart-items");
+    if (!cart.length) {
+      cartDiv.innerHTML = `<div class="cart-empty">Your cart is empty.<br>Go to Menu to add items.</div>`;
+      document.getElementById("send-order-btn").disabled = true;
+      return;
+    }
+
+    const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+
+    cartDiv.innerHTML = cart.map((item, idx) => `
+      <div class="cart-item">
+        <div style="flex:1">
+          <div class="ci-name">${escapeHtml(item.name)}</div>
+          <input class="note-input" type="text" placeholder="Note (e.g. no onions)" value="${escapeHtml(item.notes)}" oninput="updateNote(${idx}, this.value)" />
+        </div>
+        <div class="qty-ctrl">
+          <button class="qty-btn" onclick="changeQty(${idx}, -1)">−</button>
+          <span class="qty-num">${item.quantity}</span>
+          <button class="qty-btn" onclick="changeQty(${idx}, 1)">+</button>
+        </div>
+        <div class="ci-price">₱${(item.price * item.quantity).toFixed(2)}</div>
+      </div>
+    `).join("") + `
+      <div class="cart-total">
+        <span>Subtotal</span>
+        <span>₱${subtotal.toFixed(2)}</span>
+      </div>
+    `;
+
+    document.getElementById("send-order-btn").disabled = false;
+  }
+
+  function changeQty(idx, delta) {
+    cart[idx].quantity += delta;
+    if (cart[idx].quantity <= 0) cart.splice(idx, 1);
+    updateCartCount();
+    renderCart();
+    renderMenuItems(activeCatId || "ALL");
+  }
+
+  function updateNote(idx, val) {
+    cart[idx].notes = val;
+  }
+
+  // ---- Send Order ----
+  async function sendOrder() {
+    if (!cart.length) { showToast("Cart is empty."); return; }
+    if (selectedType === "DINE_IN" && !selectedTableId) { showToast("Please select a table."); return; }
+
+    const btn = document.getElementById("send-order-btn");
+    btn.disabled = true;
+    btn.textContent = "Sending…";
+
+    try {
+      // Create order
+      const order = await api("/orders", {
+        method: "POST",
+        body: JSON.stringify({
+          tableId: selectedType === "DINE_IN" ? selectedTableId : undefined,
+          orderType: selectedType,
+        })
+      });
+
+      // Add items one by one
+      for (const item of cart) {
+        await api(`/orders/${order.id}/items`, {
+          method: "POST",
+          body: JSON.stringify({
+            menuItemId: item.menuItemId,
+            quantity: item.quantity,
+            notes: item.notes || undefined,
+          })
+        });
+      }
+
+      // Reset
+      cart = [];
+      selectedTableId = null;
+      selectedTableLabel = null;
+      updateCartCount();
+
+      // Refresh tables
+      tables = await api("/tables");
+      renderTables();
+
+      showToast("Order sent to kitchen! 🔥", "success");
+      goTo("tables");
+
+    } catch (err) {
+      showToast(err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Send to Kitchen";
+    }
+  }
+
+  // ---- Navigation ----
+  function goTo(view) {
+    document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+    document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+    document.getElementById(`view-${view}`).classList.add("active");
+    document.getElementById(`nav-${view}`).classList.add("active");
+    if (view === "cart") renderCart();
+  }
+
+  // ---- Helpers ----
+  function getEmoji(name) {
+    const n = name.toLowerCase();
+    if (n.includes("adobo") || n.includes("pork") || n.includes("meat")) return "🍖";
+    if (n.includes("chicken")) return "🍗";
+    if (n.includes("rice")) return "🍚";
+    if (n.includes("fish") || n.includes("seafood") || n.includes("bangus")) return "🐟";
+    if (n.includes("drink") || n.includes("juice") || n.includes("soda")) return "🥤";
+    if (n.includes("coffee") || n.includes("tea")) return "☕";
+    if (n.includes("cake") || n.includes("dessert") || n.includes("ice cream")) return "🍰";
+    if (n.includes("soup") || n.includes("sinigang") || n.includes("bulalo")) return "🍲";
+    if (n.includes("pasta") || n.includes("noodle") || n.includes("pancit")) return "🍝";
+    if (n.includes("burger") || n.includes("sandwich")) return "🍔";
+    if (n.includes("pizza")) return "🍕";
+    if (n.includes("salad")) return "🥗";
+    return "🍽️";
+  }
+
+  function showToast(msg, type = "") {
+    const toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.className = `toast show ${type}`;
+    setTimeout(() => toast.className = "toast", 2000);
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  init();
+</script>
+</body>
+</html>
