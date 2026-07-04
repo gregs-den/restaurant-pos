@@ -8,7 +8,8 @@
     "rootDir": "./src",
     "outDir": "./dist",
     "resolveJsonModule": true,
-    "moduleResolution": "node"
+    "moduleResolution": "node10",
+    "ignoreDeprecations": "6.0"
   },
   "ts-node": {
     "transpileOnly": true
