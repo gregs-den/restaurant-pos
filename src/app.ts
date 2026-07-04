@@ -40,11 +40,6 @@ app.use(helmet({
 }))
 app.use(express.json())
 
-// Health check
-app.get("/", (req, res) => {
-  res.json({ message: "Restaurant POS API is running! 🍽️" })
-})
-
 app.use(express.static(path.join(__dirname, "../public")))
 
 // Routes
