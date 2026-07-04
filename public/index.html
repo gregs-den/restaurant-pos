@@ -306,10 +306,10 @@
 
   function redirectByRole(role) {
     const routes = {
-      ADMIN: "/Projects%202026/restaurant-pos/public/dashboard.html",
-      MANAGER: "/Projects%202026/restaurant-pos/public/dashboard.html",
-      CASHIER: "/Projects%202026/restaurant-pos/public/cashier-billing.html",
-      WAITER: "/Projects%202026/restaurant-pos/public/waiter.html",
+      ADMIN: "/dashboard.html",
+      MANAGER: "/dashboard.html",
+      CASHIER: "/cashier-billing.html",
+      WAITER: "/waiter.html",
     };
     window.location.href = routes[role] || "/waiter.html";
   }
