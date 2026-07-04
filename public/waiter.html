@@ -298,7 +298,7 @@ function logout() {
   window.location.href = "/Projects%202026/restaurant-pos/public/index.html";
 }
 
-  const API_BASE = "http://localhost:3000";
+  const API_BASE = window.location.origin;
   const TOKEN = localStorage.getItem("pos_token");
   if (!TOKEN) window.location.href = "/";
 
