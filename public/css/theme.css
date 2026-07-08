@@ -1,0 +1,115 @@
+:root {
+    /* Colors */
+    --bg: #14181a;
+    --panel: #1d2326;
+    --card: #232a2d;
+    --border: #2a3033;
+
+    --accent: #2d8f5f;
+    --accent-dark: #1f6e47;
+    --accent2: #ff6a3d;
+
+    --danger: #c4452b;
+    --warn: #e0a72e;
+    --ok: #6fcf97;
+
+    --text: #eeeeee;
+    --muted: #8a9296;
+
+    /* Receipt / Kitchen */
+    --paper: #f8f5ef;
+    --paper-edge: #d6cfc4;
+    --ink: #222;
+    --ticket: #f8f5ef;
+    --ticket-edge: #d6cfc4;
+    --paper-muted: #6b6356;
+
+    /* Buttons */
+    --ghost: #2a3336;
+    --ghost-hover: #333d41;
+
+    /* Status */
+    --offline: #555;
+    --due: #d9534f;
+
+    /* Fonts */
+    --font-display: "Courier New", monospace;
+    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Global */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+}
+
+/* Header */
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    background: var(--panel);
+    border-bottom: 3px solid var(--accent);
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+header h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 18px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Buttons */
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: var(--font-body);
+    font-weight: 500;
+}
+
+.btn-ghost {
+    background: var(--ghost);
+    color: var(--text);
+}
+
+.btn-ghost:hover {
+    background: var(--ghost-hover);
+}
+
+.btn-accent {
+    background: var(--accent);
+    color: white;
+}
+
+.btn-accent:hover {
+    background: var(--accent-dark);
+}
+
+.btn-danger {
+    background: var(--danger);
+    color: white;
+}
+
+.btn-danger:hover {
+    opacity: 0.9;
+}

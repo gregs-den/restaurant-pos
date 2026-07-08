@@ -4,32 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
 <title>Waiter — Order Taking</title>
+<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/css/nav.css">
 <style>
-  :root {
-    --bg: #14181a;
-    --panel: #1d2326;
-    --card: #232a2d;
-    --border: #2a3033;
-    --accent: #2d8f5f;
-    --accent-dark: #1f6e47;
-    --accent2: #ff6a3d;
-    --muted: #8a9296;
-    --danger: #c4452b;
-    --font-display: 'Courier New', monospace;
-    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  }
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  body { margin: 0; background: var(--bg); font-family: var(--font-body); color: #eee; min-height: 100vh; max-width: 100vw; overflow-x: hidden; }
 
-  /* ---- Header ---- */
-  header {
-    position: sticky; top: 0; z-index: 50;
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 16px;
-    background: var(--panel);
-    border-bottom: 3px solid var(--accent);
-  }
-  header h1 { font-family: var(--font-display); letter-spacing: 1px; font-size: 17px; margin: 0; text-transform: uppercase; }
+  /* ===== Navigation Menu ===== */
   .header-right { display: flex; align-items: center; gap: 10px; }
   .cart-btn {
     position: relative;
@@ -228,12 +207,23 @@
 <header>
   <h1>🍽️ Order</h1>
   <div class="header-right">
-    <button onclick="logout()" style="padding:6px 12px;border-radius:5px;border:none;background:#2a3336;color:#eee;cursor:pointer;font-size:12px">Logout</button>
-    <button class="cart-btn" onclick="goTo('cart')">
-      🛒 Cart
-      <span class="cart-count" id="cart-count" style="display:none">0</span>
-    </button>
-  </div>
+
+    <div id="nav-container"></div>
+  
+  <button
+    class="cart-btn"
+    onclick="goTo('cart')">
+    🛒 Cart
+    <span class="cart-count" id="cart-count" style="display:none">0</span>
+  </button>
+
+  <button
+    onclick="logout()"
+    style="padding:6px 12px;border-radius:5px;border:none;background:#2a3336;color:#eee;cursor:pointer;font-size:12px">
+    Logout
+  </button>
+
+</div>
 </header>
 
 <!-- View: Tables -->
@@ -289,6 +279,8 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="/js/nav.js"></script>
+
 <script>
 
 function logout() {
@@ -312,18 +304,28 @@ function logout() {
   let activeCatId = null;
 
   async function api(path, options = {}) {
-    const res = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${TOKEN}`,
-        ...(options.headers || {})
-      }
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Request failed");
-    return data;
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${TOKEN}`,
+      ...(options.headers || {})
+    }
+  });
+
+  if (res.status === 401) {
+    logout();
+    return;
   }
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error || "Request failed");
+  }
+
+  return data;
+}
 
   // ---- Init ----
   async function init() {
@@ -591,6 +593,7 @@ function logout() {
   }
 
   init();
+
 </script>
 </body>
 </html>

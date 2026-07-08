@@ -19,6 +19,9 @@ export async function updateCategory(req: Request, res: Response) {
   try {
     const id = req.params.id as string
     const category = await menuService.updateCategory(id, req.body)
+
+    req.app.get("io").emit("menu-updated")
+
     res.json(category)
   } catch (err: any) {
     res.status(400).json({ error: err.message })
@@ -29,6 +32,9 @@ export async function deleteCategory(req: Request, res: Response) {
   try {
     const id = req.params.id as string
     await menuService.deleteCategory(id)
+
+    req.app.get("io").emit("menu-updated")
+
     res.json({ message: "Category deleted" })
   } catch (err: any) {
     res.status(400).json({ error: err.message })
@@ -50,6 +56,9 @@ export async function getMenuItem(req: Request, res: Response) {
 export async function createMenuItem(req: Request, res: Response) {
   try {
     const item = await menuService.createMenuItem(req.body)
+
+    req.app.get("io").emit("menu-updated")
+
     res.status(201).json(item)
   } catch (err: any) {
     res.status(400).json({ error: err.message })
@@ -60,6 +69,9 @@ export async function updateMenuItem(req: Request, res: Response) {
   try {
     const id = req.params.id as string
     const item = await menuService.updateMenuItem(id, req.body)
+
+    req.app.get("io").emit("menu-updated")
+
     res.json(item)
   } catch (err: any) {
     res.status(400).json({ error: err.message })
@@ -70,6 +82,9 @@ export async function toggleAvailability(req: Request, res: Response) {
   try {
     const id = req.params.id as string
     const item = await menuService.toggleMenuItemAvailability(id)
+
+    req.app.get("io").emit("menu-updated")
+
     res.json(item)
   } catch (err: any) {
     res.status(400).json({ error: err.message })
@@ -80,6 +95,9 @@ export async function deleteMenuItem(req: Request, res: Response) {
   try {
     const id = req.params.id as string
     await menuService.deleteMenuItem(id)
+
+    req.app.get("io").emit("menu-updated")
+
     res.json({ message: "Item deleted" })
   } catch (err: any) {
     res.status(400).json({ error: err.message })

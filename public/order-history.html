@@ -3,43 +3,11 @@
 <head>
 <meta charset="UTF-8" />
 <title>Order History</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/css/nav.css">
 <style>
-  :root {
-    --bg: #14181a;
-    --panel: #1d2326;
-    --paper: #fbfaf6;
-    --paper-edge: #e3e0d5;
-    --ink: #1c1a16;
-    --accent: #2d8f5f;
-    --muted: #8a9296;
-    --font-display: 'Courier New', monospace;
-    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    font-family: var(--font-body);
-    color: #eee;
-    min-height: 100vh;
-  }
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 18px 28px;
-    background: var(--panel);
-    border-bottom: 3px solid var(--accent);
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-  header h1 {
-    font-family: var(--font-display);
-    letter-spacing: 2px;
-    font-size: 20px;
-    margin: 0;
-    text-transform: uppercase;
-  }
+
   .filters { display: flex; gap: 8px; align-items: center; }
   .filters input {
     padding: 6px 8px;
@@ -113,18 +81,33 @@
 
 <header>
   <h1>📜 Order History</h1>
+
   <div class="filters">
+
     <input type="date" id="from-date" />
     <input type="date" id="to-date" />
+
     <button id="filter-btn">Filter</button>
     <button id="clear-btn" style="background:#444">Clear</button>
-    <button onclick="logout()" style="padding:6px 12px;border-radius:5px;border:none;background:#2a3336;color:#eee;cursor:pointer;font-size:12px">Logout</button>
+
+    <!-- Navigation Menu -->
+
+      <div id="nav-container"></div>      
+
+    </div>
+
+    <button class="btn btn-ghost" onclick="logout()">
+      Logout
+    </button>
+
   </div>
 </header>
 
 <div class="summary-bar" id="summary-bar"></div>
 
 <div id="list"><div class="empty-state">Loading…</div></div>
+
+<script src="/js/nav.js"></script>
 
 <script>
 
@@ -137,6 +120,18 @@
 
   const API_BASE = window.location.origin;
   const TOKEN = localStorage.getItem("pos_token");
+
+  const socket = io(API_BASE);
+
+    socket.on("connect", () => {
+        console.log("Connected to server");
+    });
+
+    socket.on("order-history-updated", () => {
+        console.log("Refreshing order history...");
+        loadHistory();
+    });
+
   if (!TOKEN) window.location.href = "/";
 
   document.getElementById("filter-btn").addEventListener("click", () => loadHistory());
@@ -214,6 +209,7 @@
   }
 
   loadHistory();
+
 </script>
 
 </body>

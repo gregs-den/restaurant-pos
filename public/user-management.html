@@ -3,32 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <title>User Management</title>
+<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/css/nav.css">
 <style>
-  :root {
-    --bg: #14181a;
-    --panel: #1d2326;
-    --card: #232a2d;
-    --border: #2a3033;
-    --accent: #2d8f5f;
-    --accent-dark: #1f6e47;
-    --danger: #c4452b;
-    --warn: #e0a72e;
-    --muted: #8a9296;
-    --font-display: 'Courier New', monospace;
-    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); font-family: var(--font-body); color: #eee; min-height: 100vh; }
-
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 18px 28px;
-    background: var(--panel);
-    border-bottom: 3px solid var(--accent);
-  }
-  header h1 { font-family: var(--font-display); letter-spacing: 2px; font-size: 20px; margin: 0; text-transform: uppercase; }
 
   .main { padding: 28px; }
   .main-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
@@ -172,7 +149,20 @@
 
 <header>
   <h1>👥 User Management</h1>
-  <button class="btn btn-primary" onclick="openModal()">+ Add Staff</button>
+
+  <div style="display:flex;align-items:center;gap:12px;">
+
+    <button class="btn btn-primary" onclick="openModal()">+ Add Staff</button>
+
+    <!-- Navigation Menu -->
+    <div id="nav-container"></div>
+
+    <button class="btn btn-ghost" onclick="logout()">
+      Logout
+    </button>
+
+
+  </div>
 </header>
 
 <div class="main">
@@ -246,7 +236,16 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="/js/nav.js"></script>
+
 <script>
+
+  function logout() {
+  localStorage.removeItem("pos_token");
+  localStorage.removeItem("pos_role");
+  localStorage.removeItem("pos_user");
+  window.location.href = "/index.html";
+}
 
   const API_BASE = window.location.origin;
   const TOKEN = localStorage.getItem("pos_token");
@@ -258,17 +257,27 @@
 
   async function api(path, options = {}) {
     const res = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${TOKEN}`,
-        ...(options.headers || {})
-      }
+        ...options,
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${TOKEN}`,
+            ...(options.headers || {})
+        }
     });
+
+    if (res.status === 401) {
+        logout();
+        return;
+    }
+
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Request failed");
+
+    if (!res.ok) {
+        throw new Error(data.error || "Request failed");
+    }
+
     return data;
-  }
+}
 
   async function loadUsers() {
     try {
@@ -426,6 +435,7 @@
   });
 
   loadUsers();
+
 </script>
 </body>
 </html>

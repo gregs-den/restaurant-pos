@@ -4,43 +4,10 @@
 <meta charset="UTF-8" />
 <title>Kitchen Display</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/css/nav.css">
 <style>
-  :root {
-    --bg: #14181a;
-    --panel: #1d2326;
-    --ticket: #f4efe4;
-    --ticket-edge: #d8cfb8;
-    --ink: #1c1a16;
-    --accent: #ff6a3d;
-    --ok: #4caf6e;
-    --warn: #e0a72e;
-    --muted: #8a9296;
-    --font-display: 'Courier New', monospace;
-    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    font-family: var(--font-body);
-    color: #eee;
-    min-height: 100vh;
-  }
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 18px 28px;
-    background: var(--panel);
-    border-bottom: 3px solid var(--accent);
-  }
-  header h1 {
-    font-family: var(--font-display);
-    letter-spacing: 2px;
-    font-size: 20px;
-    margin: 0;
-    text-transform: uppercase;
-  }
+
   .status {
     display: flex;
     align-items: center;
@@ -52,7 +19,7 @@
     width: 9px;
     height: 9px;
     border-radius: 50%;
-    background: #555;
+    background: var(--offline);
   }
   .dot.live { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
 
@@ -106,7 +73,7 @@
   }
   .ticket-time {
     font-size: 11px;
-    color: #6b6356;
+    color: var(--paper-muted);
   }
   .ticket-type {
     display: inline-block;
@@ -140,7 +107,7 @@
   }
   .item-note {
     font-size: 11px;
-    color: #6b6356;
+    color: var(--paper-muted);
     font-style: italic;
     margin-top: 2px;
   }
@@ -148,38 +115,53 @@
   select.status-select {
     font-size: 11px;
     border: 1px solid var(--ticket-edge);
-    background: #fff;
+    background: var(--paper);
     border-radius: 3px;
     padding: 2px 4px;
     font-family: var(--font-body);
   }
   .status-PENDING { color: var(--warn); }
-  .status-COOKING { color: #1c7fd6; }
+  .status-COOKING { color: var(--cooking) }
   .status-SERVED { color: var(--ok); }
 </style>
 </head>
 <body>
 
 <header>
+
   <h1>🔥 Kitchen Display</h1>
+
   <div class="status">
+
+    <div id="nav-container"></div>
+
     <span class="dot" id="dot"></span>
     <span id="status-text">connecting…</span>
-    <button onclick="logout()" style="padding:6px 12px;border-radius:5px;border:none;background:#2a3336;color:#eee;cursor:pointer;font-size:12px">Logout</button>
+
+    <button class="btn btn-ghost" onclick="logout()">
+    Logout
+    </button>
+
   </div>
+
 </header>
 
 <div id="board">
   <div class="empty-state">Waiting for orders…</div>
 </div>
 
+<script src="/js/nav.js"></script>
+
 <script>
 
 function logout() {
-  localStorage.removeItem("pos_token");
-  localStorage.removeItem("pos_role");
-  localStorage.removeItem("pos_user");
-  window.location.href = "/index.html";
+    socket.disconnect();
+
+    localStorage.removeItem("pos_token");
+    localStorage.removeItem("pos_role");
+    localStorage.removeItem("pos_user");
+
+    window.location.href="/index.html";
 }
 
   // ---- CONFIG: change if your server runs elsewhere ----
@@ -205,17 +187,26 @@ function logout() {
     statusText.textContent = "disconnected";
   });
 
-  socket.on("new-order", () => loadOrders());
-  socket.on("new-order-item", () => loadOrders());
-  socket.on("order-item-status-changed", () => loadOrders());
-  socket.on("order-item-updated", () => loadOrders());
+  socket.on("new-order", loadOrders);
+  socket.on("new-order-item", loadOrders);
+  socket.on("order-item-status-changed", loadOrders);
+  socket.on("order-item-updated", loadOrders);
 
   async function loadOrders() {
     try {
       const res = await fetch(`${API_BASE}/kitchen/orders`, {
         headers: { Authorization: `Bearer ${TOKEN}` }
       });
-      const orders = await res.json();
+      if (res.status === 401) {
+        logout();
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error("Unable to load kitchen orders.");
+      }
+
+const orders = await res.json();
       renderOrders(orders);
     } catch (err) {
       console.error("Failed to load orders", err);
@@ -264,14 +255,33 @@ function logout() {
       sel.addEventListener("change", async (e) => {
         const itemId = e.target.getAttribute("data-item-id");
         const newStatus = e.target.value;
-        await fetch(`${API_BASE}/order-items/${itemId}/status`, {
-          method: "PATCH",
-          headers: {
+try {
+    sel.disabled = true;
+
+    const res = await fetch(`${API_BASE}/order-items/${itemId}/status`, {
+        method: "PATCH",
+        headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${TOKEN}`
-          },
-          body: JSON.stringify({ status: newStatus })
-        });
+        },
+        body: JSON.stringify({ status: newStatus })
+    });
+
+    if (res.status === 401) {
+        logout();
+        return;
+    }
+
+    if (!res.ok) {
+        throw new Error("Failed to update status.");
+    }
+
+} catch (err) {
+    alert(err.message);
+    loadOrders();
+} finally {
+    sel.disabled = false;
+}
       });
     });
   }
@@ -281,6 +291,9 @@ function logout() {
     div.textContent = str;
     return div.innerHTML;
   }
+
+  loadOrders();
+
 </script>
 
 </body>

@@ -3,7 +3,86 @@
 <head>
 <meta charset="UTF-8" />
 <title>Menu Management</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/css/nav.css">
 <style>
+
+  /* ===== Navigation Menu ===== */
+.nav-menu-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.nav-menu-btn {
+  padding: 6px 12px;
+  border-radius: 5px;
+  border: 1px solid #2a3033;
+  background: #2a3336;
+  color: #eee;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nav-menu-btn:hover {
+  background: #333d41;
+}
+
+.nav-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: #1d2326;
+  border: 1px solid #2a3033;
+  border-radius: 8px;
+  min-width: 220px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  z-index: 999;
+  overflow: hidden;
+}
+
+.nav-dropdown.open {
+  display: block;
+}
+
+.nav-dropdown a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  color: #eee;
+  text-decoration: none;
+  font-size: 13px;
+  border-bottom: 1px solid #232a2d;
+}
+
+.nav-dropdown a:last-child {
+  border-bottom: none;
+}
+
+.nav-dropdown a:hover {
+  background: #2a3336;
+}
+
+.nav-dropdown a.current {
+  background: #243228;
+  color: #6fcf97;
+}
+
+.nav-section-label {
+  padding: 8px 14px 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: #8a9296;
+  background: #171b1d;
+}
+
   :root {
     --bg: #14181a;
     --panel: #1d2326;
@@ -193,8 +272,19 @@
 
 <header>
   <h1>🍽️ Menu Management</h1>
-  <div style="font-size:13px;color:var(--muted)" id="header-user"></div>
-  <button onclick="logout()" style="padding:6px 12px;border-radius:5px;border:none;background:#2a3336;color:#eee;cursor:pointer;font-size:12px">Logout</button>
+
+  <div style="display:flex;align-items:center;gap:12px;">
+
+    <div style="font-size:13px;color:var(--muted)" id="header-user"></div>
+
+    <!-- Navigation Menu -->
+    <div id="nav-container"></div>
+
+    <button class="btn btn-ghost" onclick="logout()">
+    Logout
+    </button>
+
+  </div>
 </header>
 
 <div class="layout">
@@ -264,6 +354,8 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="/js/nav.js"></script>
+
 <script>
 
 function logout() {
@@ -275,6 +367,22 @@ function logout() {
 
   const API_BASE = window.location.origin;
   const TOKEN = localStorage.getItem("pos_token");
+  const socket = io(API_BASE);
+
+  socket.on("connect", () => {
+      console.log("Socket connected");
+  });
+
+  socket.on("menu-updated", async () => {
+      console.log("Menu updated");
+
+      await loadCategories();
+
+      if (currentCatId) {
+          await loadItems(currentCatId);
+      }
+  });
+
   if (!TOKEN) window.location.href = "/";
 
   let categories = [];
@@ -284,23 +392,38 @@ function logout() {
 
   async function api(path, options = {}) {
     const res = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${TOKEN}`,
-        ...(options.headers || {})
-      }
+        ...options,
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${TOKEN}`,
+            ...(options.headers || {})
+        }
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Request failed");
-    return data;
-  }
 
-  // ---- Categories ----
+    if (res.status === 401) {
+    alert("Your session has expired.");
+    logout();
+    throw new Error("Unauthorized");
+    }
+
+    const data = await res.json();
+
+    if (!res.ok) {
+        throw new Error(data.error || "Request failed");
+    }
+
+    return data;
+}
+
+// ---- Categories ----
   async function loadCategories() {
-    categories = await api("/categories");
-    renderCategories();
-    populateCategorySelect();
+    document.getElementById("cat-list").innerHTML =
+    `<div style="padding:10px;color:var(--muted)">Loading...</div>`;
+
+  categories = await api("/categories");
+
+  renderCategories();
+  populateCategorySelect();
   }
 
   function renderCategories() {
@@ -356,38 +479,93 @@ function logout() {
   }
 
   async function saveCategory() {
+    const btn = event.target;
+    btn.disabled = true;
+
     const name = document.getElementById("cat-name").value.trim();
-    if (!name) { showToast("Name is required."); return; }
+
+    if (!name) {
+        btn.disabled = false;
+        showToast("Name is required.");
+        return;
+    }
+
     const body = {
-      name,
-      description: document.getElementById("cat-desc").value.trim() || undefined,
-      sortOrder: parseInt(document.getElementById("cat-sort").value) || 0,
+        name,
+        description: document.getElementById("cat-desc").value.trim() || undefined,
+        sortOrder: parseInt(document.getElementById("cat-sort").value) || 0
     };
+
     try {
-      if (editingCatId) {
-        await api(`/categories/${editingCatId}`, { method: "PUT", body: JSON.stringify(body) });
-        showToast("Category updated.");
-      } else {
-        await api("/categories", { method: "POST", body: JSON.stringify(body) });
-        showToast("Category created.");
-      }
-      closeCatModal();
-      await loadCategories();
-    } catch (err) { showToast(err.message); }
-  }
+
+        if (editingCatId) {
+            await api(`/categories/${editingCatId}`, {
+                method: "PUT",
+                body: JSON.stringify(body)
+            });
+            showToast("Category updated.");
+        } else {
+            await api("/categories", {
+                method: "POST",
+                body: JSON.stringify(body)
+            });
+            showToast("Category created.");
+        }
+
+        closeCatModal();
+        await loadCategories();
+
+    } catch (err) {
+
+        showToast(err.message);
+
+    } finally {
+
+        btn.disabled = false;
+
+    }
+}
 
   function confirmDeleteCategory(id, name) {
     document.getElementById("confirm-title").textContent = "Delete Category?";
     document.getElementById("confirm-msg").textContent = `"${name}" and all its items will be deactivated.`;
-    document.getElementById("confirm-ok-btn").onclick = async () => {
-      try {
-        await api(`/categories/${id}`, { method: "DELETE" });
+    document.getElementById("confirm-ok-btn").onclick = async function () {
+
+    this.disabled = true;
+
+    try {
+
+        await api(`/categories/${id}`, {
+            method: "DELETE"
+        });
+
         showToast("Category deleted.");
-        if (currentCatId === id) { currentCatId = null; document.getElementById("items-grid").innerHTML = `<div class="empty-state">Select a category.</div>`; document.getElementById("add-item-btn").style.display = "none"; document.getElementById("main-title").textContent = "Select a category"; }
+
+        if (currentCatId === id) {
+
+            currentCatId = null;
+
+            document.getElementById("items-grid").innerHTML =
+                `<div class="empty-state">Select a category.</div>`;
+
+            document.getElementById("add-item-btn").style.display = "none";
+            document.getElementById("main-title").textContent = "Select a category";
+        }
+
         closeConfirm();
         await loadCategories();
-      } catch (err) { showToast(err.message); }
-    };
+
+    } catch (err) {
+
+        showToast(err.message);
+
+    } finally {
+
+        this.disabled = false;
+
+    }
+
+};
     document.getElementById("confirm-modal").classList.add("open");
   }
 
@@ -450,49 +628,133 @@ function logout() {
   }
 
   async function saveItem() {
+
+    const btn = event.target;
+    btn.disabled = true;
+
     const name = document.getElementById("item-name").value.trim();
     const price = parseFloat(document.getElementById("item-price").value);
     const categoryId = document.getElementById("item-category").value;
-    if (!name) { showToast("Name is required."); return; }
-    if (!price || price <= 0) { showToast("Enter a valid price."); return; }
-    if (!categoryId) { showToast("Select a category."); return; }
+
+    if (!name) {
+        btn.disabled = false;
+        showToast("Name is required.");
+        return;
+    }
+
+    if (!price || price <= 0) {
+        btn.disabled = false;
+        showToast("Enter a valid price.");
+        return;
+    }
+
+    if (!categoryId) {
+        btn.disabled = false;
+        showToast("Select a category.");
+        return;
+    }
 
     const body = {
-      name,
-      description: document.getElementById("item-desc").value.trim() || undefined,
-      price,
-      categoryId,
+        name,
+        description: document.getElementById("item-desc").value.trim() || undefined,
+        price,
+        categoryId
     };
+
     try {
-      if (editingItemId) {
-        await api(`/menu-items/${editingItemId}`, { method: "PUT", body: JSON.stringify(body) });
-        showToast("Item updated.");
-      } else {
-        await api("/menu-items", { method: "POST", body: JSON.stringify(body) });
-        showToast("Item created.");
-      }
-      closeItemModal();
-      if (currentCatId) await loadItems(currentCatId);
-    } catch (err) { showToast(err.message); }
-  }
+
+        if (editingItemId) {
+
+            await api(`/menu-items/${editingItemId}`, {
+                method: "PUT",
+                body: JSON.stringify(body)
+            });
+
+            showToast("Item updated.");
+
+        } else {
+
+            await api("/menu-items", {
+                method: "POST",
+                body: JSON.stringify(body)
+            });
+
+            showToast("Item created.");
+
+        }
+
+        closeItemModal();
+
+        if (currentCatId)
+            await loadItems(currentCatId);
+
+    } catch (err) {
+
+        showToast(err.message);
+
+    } finally {
+
+        btn.disabled = false;
+
+    }
+}
 
   async function toggleAvailability(id) {
+
+    const btn = event.target;
+    btn.disabled = true;
+
     try {
-      await api(`/menu-items/${id}/toggle`, { method: "PATCH" });
-      if (currentCatId) await loadItems(currentCatId);
-    } catch (err) { showToast(err.message); }
-  }
+
+        await api(`/menu-items/${id}/toggle`, {
+            method: "PATCH"
+        });
+
+        if (currentCatId)
+            await loadItems(currentCatId);
+
+    } catch (err) {
+
+        showToast(err.message);
+
+    } finally {
+
+        btn.disabled = false;
+
+    }
+
+}
 
   function confirmDeleteItem(id, name) {
     document.getElementById("confirm-title").textContent = "Delete Menu Item?";
     document.getElementById("confirm-msg").textContent = `"${name}" will be deactivated and hidden from the menu.`;
-    document.getElementById("confirm-ok-btn").onclick = async () => {
-      try {
-        await api(`/menu-items/${id}`, { method: "DELETE" });
-        showToast("Item deleted.");
-        closeConfirm();
-        if (currentCatId) await loadItems(currentCatId);
-      } catch (err) { showToast(err.message); }
+    document.getElementById("confirm-ok-btn").onclick = async function () {
+
+        this.disabled = true;
+
+        try {
+
+            await api(`/menu-items/${id}`, {
+                method: "DELETE"
+            });
+
+            showToast("Item deleted.");
+
+            closeConfirm();
+
+            if (currentCatId)
+                await loadItems(currentCatId);
+
+        } catch (err) {
+
+            showToast(err.message);
+
+        } finally {
+
+            this.disabled = false;
+
+        }
+
     };
     document.getElementById("confirm-modal").classList.add("open");
   }
@@ -537,7 +799,18 @@ function logout() {
     bg.addEventListener("click", e => { if (e.target === bg) { bg.classList.remove("open"); } });
   });
 
-  loadCategories();
+  (async () => {
+    try {
+        await loadCategories();
+
+        if (categories.length) {
+            selectCategory(categories[0].id);
+        }
+    } catch (err) {
+        showToast(err.message);
+    }
+})();
+
 </script>
 </body>
 </html>
