@@ -84,3 +84,19 @@ export async function getLowStockAlerts(req: AuthRequest, res: Response) {
   const ingredients = await inventoryService.getLowStockIngredients()
   res.json(ingredients)
 }
+
+export async function getSetMealComponents(req: AuthRequest, res: Response) {
+  const menuItemId = req.params.menuItemId as string
+  const components = await inventoryService.getSetMealComponents(menuItemId)
+  res.json(components)
+}
+
+export async function setSetMealComponents(req: AuthRequest, res: Response) {
+  try {
+    const menuItemId = req.params.menuItemId as string
+    const components = await inventoryService.setSetMealComponents(menuItemId, req.body.components)
+    res.json(components)
+  } catch (err: any) {
+    res.status(400).json({ error: err.message })
+  }
+}

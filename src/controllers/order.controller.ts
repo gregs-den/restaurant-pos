@@ -66,19 +66,18 @@ export async function updateOrderStatus(req: AuthRequest, res: Response) {
 export async function addOrderItem(req: AuthRequest, res: Response) {
   try {
     const orderId = req.params.id as string
-    const item = await orderService.addOrderItem(orderId, req.body)
+    const { addOrderItemWithComponents, deductStockForOrderItemComponents } = await import("../services/order-item-component.service")
 
-     // Auto-deduct stock for this item
+    const item = await addOrderItemWithComponents(orderId, req.body)
+
+    const io = req.app.get("io")
+    io.to("kitchen").emit("new-order-item", item)
+
     try {
-      const { deductStockForOrderItem } = await import("../services/inventory.service")
-      await deductStockForOrderItem(item!.id, req.user!.userId)
+      await deductStockForOrderItemComponents(item!.id, req.user!.userId)
     } catch (stockErr) {
       console.warn("Stock deduction skipped:", stockErr)
     }
-
-    // Notify kitchen
-    const io = req.app.get("io")
-    io.to("kitchen").emit("new-order-item", item)
 
     res.status(201).json(item)
   } catch (err: any) {

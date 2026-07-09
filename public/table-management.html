@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Table Management</title>
+<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/css/nav.css">
+<style>
+  
+  .header-right { display: flex; gap: 8px; align-items: center; }
+
+  .main { padding: 24px; }
+
+  .stats-bar { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+  .stat-chip { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 10px 16px; }
+  .stat-chip .num { font-family: var(--font-display); font-size: 20px; font-weight: bold; color: var(--accent); }
+  .stat-chip .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .section-head h2 { margin: 0; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  .tables-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
+
+  .table-card {
+    background: var(--card); border: 2px solid var(--border);
+    border-radius: 10px; padding: 16px; position: relative;
+  }
+  .table-card.AVAILABLE { border-color: #2d6b4a; background: #1a2620; }
+  .table-card.OCCUPIED { border-color: #6b4a2d; background: #261e1a; }
+  .table-card.RESERVED { border-color: #4a4a6b; background: #1e1e26; }
+  .table-card.BILLING { border-color: #6b2d2d; background: #261a1a; }
+
+  .table-number { font-family: var(--font-display); font-size: 22px; font-weight: bold; margin-bottom: 4px; }
+  .table-meta { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .table-status-badge {
+    display: inline-block; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.5px; padding: 3px 8px; border-radius: 10px; margin-bottom: 10px;
+  }
+  .badge-AVAILABLE { background: #1f3a2a; color: #6fcf97; }
+  .badge-OCCUPIED { background: #3a2a1f; color: #f2994a; }
+  .badge-RESERVED { background: #2a2a3a; color: #9b9ef7; }
+  .badge-BILLING { background: #3a1f1f; color: #eb5757; }
+
+  .table-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn {
+    padding: 6px 10px; border-radius: 5px; border: none;
+    font-size: 11px; cursor: pointer; font-family: var(--font-body); font-weight: 500;
+  }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-accent:hover { background: var(--accent-dark); }
+  .btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+  .btn-danger:hover { background: var(--danger); color: #fff; }
+  .btn-ghost { background: #2a3336; color: #eee; }
+  .btn-ghost:hover { background: #333d41; }
+  .btn-lg { padding: 10px 20px; font-size: 14px; }
+  .status-select-sm {
+    font-size: 11px; padding: 4px 6px; border-radius: 4px;
+    border: 1px solid var(--border); background: #1a2022; color: #eee;
+    width: 100%; margin-top: 4px;
+  }
+
+  .empty-state { text-align: center; color: var(--muted); padding: 60px 20px; grid-column: 1/-1; }
+
+  /* ---- Modal ---- */
+  .modal-bg {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 28px; width: 100%; max-width: 400px;
+  }
+  .modal h3 { margin: 0 0 20px; font-size: 16px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+  .field input, .field select {
+    width: 100%; padding: 9px 10px; border-radius: 5px;
+    border: 1px solid var(--border); background: #1a2022; color: #eee;
+    font-size: 14px; font-family: var(--font-body);
+  }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--accent-dark); color: #fff;
+    padding: 10px 20px; border-radius: 6px; font-size: 13px;
+    opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 200;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🪑 Table Management</h1>
+  <div class="header-right">
+    <div id="nav-container"></div>
+    <button class="btn btn-accent btn-lg" onclick="openTableModal()">+ Add Table</button>
+    <button class="btn btn-ghost" onclick="logout()">Logout</button>
+  </div>
+</header>
+
+<div class="main">
+  <!-- Stats -->
+  <div class="stats-bar" id="stats-bar"></div>
+
+  <div class="section-head">
+    <h2>All Tables</h2>
+    <button class="btn btn-ghost" onclick="loadTables()">🔄 Refresh</button>
+  </div>
+
+  <div class="tables-grid" id="tables-grid">
+    <div class="empty-state">Loading…</div>
+  </div>
+</div>
+
+<!-- Add/Edit Table Modal -->
+<div class="modal-bg" id="table-modal">
+  <div class="modal">
+    <h3 id="modal-title">Add Table</h3>
+    <div class="field">
+      <label>Table Number / Name</label>
+      <input type="text" id="t-number" placeholder="e.g. T1, T2, VIP1" />
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Capacity</label>
+        <input type="number" id="t-capacity" placeholder="e.g. 4" min="1" value="4" />
+      </div>
+      <div class="field">
+        <label>Floor Section</label>
+        <input type="text" id="t-section" placeholder="e.g. Ground Floor" />
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeTableModal()">Cancel</button>
+      <button class="btn btn-accent" onclick="saveTable()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/js/nav.js"></script>
+<script>
+  const API_BASE = window.location.origin;
+  const TOKEN = localStorage.getItem("pos_token");
+  if (!TOKEN) window.location.href = "/";
+
+  let tables = [];
+  let editingId = null;
+
+  function logout() {
+    localStorage.removeItem("pos_token");
+    localStorage.removeItem("pos_role");
+    localStorage.removeItem("pos_user");
+    window.location.href = "/index.html";
+  }
+
+  async function api(path, options = {}) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN}`, ...(options.headers || {}) }
+    });
+    if (res.status === 401) { logout(); return; }
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  }
+
+  async function loadTables() {
+    try {
+      tables = await api("/tables");
+      renderStats();
+      renderTables();
+    } catch (err) {
+      document.getElementById("tables-grid").innerHTML = `<div class="empty-state">Failed to load tables.</div>`;
+    }
+  }
+
+  function renderStats() {
+    const statuses = ["AVAILABLE", "OCCUPIED", "RESERVED", "BILLING"];
+    document.getElementById("stats-bar").innerHTML = `
+      <div class="stat-chip"><div class="num">${tables.length}</div><div class="lbl">Total Tables</div></div>
+      ${statuses.map(s => `
+        <div class="stat-chip">
+          <div class="num" style="color:var(--accent)">${tables.filter(t => t.status === s).length}</div>
+          <div class="lbl">${s}</div>
+        </div>
+      `).join("")}
+    `;
+  }
+
+  function renderTables() {
+    const grid = document.getElementById("tables-grid");
+    if (!tables.length) {
+      grid.innerHTML = `<div class="empty-state">No tables yet. Click "+ Add Table" to create your first one (e.g. T1, T2).</div>`;
+      return;
+    }
+    grid.innerHTML = tables.map(t => `
+      <div class="table-card ${t.status}">
+        <div class="table-number">${escapeHtml(t.tableNumber)}</div>
+        <div class="table-meta">👥 Seats ${t.capacity}${t.floorSection ? ` · ${escapeHtml(t.floorSection)}` : ""}</div>
+        <span class="table-status-badge badge-${t.status}">${t.status}</span>
+        <select class="status-select-sm" onchange="quickStatusChange('${t.id}', this.value)">
+          <option value="AVAILABLE" ${t.status === "AVAILABLE" ? "selected" : ""}>Available</option>
+          <option value="OCCUPIED" ${t.status === "OCCUPIED" ? "selected" : ""}>Occupied</option>
+          <option value="RESERVED" ${t.status === "RESERVED" ? "selected" : ""}>Reserved</option>
+          <option value="BILLING" ${t.status === "BILLING" ? "selected" : ""}>Billing</option>
+        </select>
+        <div class="table-actions" style="margin-top:8px">
+          <button class="btn btn-ghost" onclick="editTable('${t.id}')">✏️ Edit</button>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  async function quickStatusChange(id, status) {
+    try {
+      await api(`/tables/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
+      showToast("Table status updated.");
+      await loadTables();
+    } catch (err) { showToast(err.message); }
+  }
+
+  function openTableModal(prefill = null) {
+    editingId = prefill ? prefill.id : null;
+    document.getElementById("modal-title").textContent = prefill ? "Edit Table" : "Add Table";
+    document.getElementById("t-number").value = prefill ? prefill.tableNumber : "";
+    document.getElementById("t-capacity").value = prefill ? prefill.capacity : 4;
+    document.getElementById("t-section").value = prefill ? (prefill.floorSection || "") : "";
+    document.getElementById("table-modal").classList.add("open");
+  }
+
+  function closeTableModal() { document.getElementById("table-modal").classList.remove("open"); }
+
+  function editTable(id) {
+    const table = tables.find(t => t.id === id);
+    if (table) openTableModal(table);
+  }
+
+  async function saveTable() {
+    const tableNumber = document.getElementById("t-number").value.trim();
+    const capacity = parseInt(document.getElementById("t-capacity").value) || 4;
+    const floorSection = document.getElementById("t-section").value.trim();
+
+    if (!tableNumber) { showToast("Table number/name is required."); return; }
+
+    try {
+      if (editingId) {
+        // No PUT endpoint for full table edit yet — just update status endpoint won't cover this,
+        // so for now just re-create isn't ideal. We'll just notify if trying to rename.
+        showToast("Editing table number isn't supported yet — only status can be changed for existing tables.");
+        closeTableModal();
+        return;
+      } else {
+        await api("/tables", { method: "POST", body: JSON.stringify({ tableNumber, capacity, floorSection: floorSection || undefined }) });
+        showToast("Table created.");
+      }
+      closeTableModal();
+      await loadTables();
+    } catch (err) { showToast(err.message); }
+  }
+
+  function showToast(msg) {
+    const toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 2500);
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  document.querySelectorAll(".modal-bg").forEach(bg => {
+    bg.addEventListener("click", e => { if (e.target === bg) bg.classList.remove("open"); });
+  });
+
+  loadTables();
+</script>
+</body>
+</html>

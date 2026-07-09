@@ -173,3 +173,27 @@ export async function deductStockForOrderItem(orderItemId: string, userId: strin
     })
   }
 }
+
+// ===== Set Meal Components (default recipe) =====
+export async function getSetMealComponents(setMenuItemId: string) {
+  return prisma.setMealComponent.findMany({
+    where: { setMenuItemId },
+    include: { component: true },
+  })
+}
+
+export async function setSetMealComponents(setMenuItemId: string, components: { componentId: string; quantity: number }[]) {
+  await prisma.setMealComponent.deleteMany({ where: { setMenuItemId } })
+
+  if (components.length > 0) {
+    await prisma.setMealComponent.createMany({
+      data: components.map(c => ({
+        setMenuItemId,
+        componentId: c.componentId,
+        quantity: c.quantity,
+      })),
+    })
+  }
+
+  return getSetMealComponents(setMenuItemId)
+}

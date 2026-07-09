@@ -121,6 +121,9 @@ model MenuItem {
   modifierGroups  ModifierGroup[]
   orderItems      OrderItem[]
   menuItemIngredients MenuItemIngredient[]
+  setComponentsAsParent   SetMealComponent[]    @relation("SetMealParent")
+  setComponentsAsChild    SetMealComponent[]    @relation("SetMealComponent")
+  orderItemComponents     OrderItemComponent[]
 
   @@map("menu_items")
 }
@@ -224,6 +227,7 @@ model OrderItem {
   order               Order               @relation(fields: [orderId], references: [id])
   menuItem            MenuItem            @relation(fields: [menuItemId], references: [id])
   orderItemModifiers  OrderItemModifier[]
+  components          OrderItemComponent[]
 
   @@map("order_items")
 }
@@ -367,4 +371,31 @@ model Reservation {
   table        Table?            @relation(fields: [tableId], references: [id])
 
   @@map("reservations")
+}
+
+model SetMealComponent {
+  id             String   @id @default(uuid())
+  setMenuItemId  String   @map("set_menu_item_id")
+  componentId    String   @map("component_id")
+  quantity       Int      @default(1)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  setMenuItem    MenuItem @relation("SetMealParent", fields: [setMenuItemId], references: [id])
+  component      MenuItem @relation("SetMealComponent", fields: [componentId], references: [id])
+
+  @@map("set_meal_components")
+}
+
+model OrderItemComponent {
+  id             String    @id @default(uuid())
+  orderItemId    String    @map("order_item_id")
+  componentId    String    @map("component_id")
+  quantity       Int       @default(1)
+  isSubstituted  Boolean   @default(false) @map("is_substituted")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  orderItem      OrderItem @relation(fields: [orderItemId], references: [id])
+  component      MenuItem  @relation(fields: [componentId], references: [id])
+
+  @@map("order_item_components")
 }

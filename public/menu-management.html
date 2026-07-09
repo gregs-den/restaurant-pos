@@ -352,11 +352,85 @@
   </div>
 </div>
 
+<!-- Set Meal Components Modal -->
+<div class="modal-bg" id="components-modal">
+  <div class="modal">
+    <h3 id="components-modal-title">Set Meal Components</h3>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Define what dishes make up this set. Inventory will deduct from these when ordered.</div>
+    <div id="components-rows"></div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="addComponentRow()">+ Add Component</button>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeComponentsModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveComponents()">Save Components</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="/js/nav.js"></script>
 
 <script>
+
+  let currentSetMealItemId = null;
+let componentRows = [];
+let allMenuItemsForComponents = [];
+
+async function openComponentsModal(menuItemId, itemName) {
+  currentSetMealItemId = menuItemId;
+  document.getElementById("components-modal-title").textContent = `Set Meal Components — ${itemName}`;
+
+  if (!allMenuItemsForComponents.length) {
+    allMenuItemsForComponents = await api("/menu-items");
+  }
+
+  const existing = await api(`/menu-items/${menuItemId}/set-components`);
+  componentRows = existing.map(c => ({ componentId: c.componentId, quantity: c.quantity }));
+  renderComponentRows();
+  document.getElementById("components-modal").classList.add("open");
+}
+
+function closeComponentsModal() { document.getElementById("components-modal").classList.remove("open"); }
+
+function renderComponentRows() {
+  const container = document.getElementById("components-rows");
+  const otherItems = allMenuItemsForComponents.filter(i => i.id !== currentSetMealItemId);
+
+  container.innerHTML = componentRows.map((row, idx) => `
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <select style="flex:1" onchange="componentRows[${idx}].componentId = this.value">
+        ${otherItems.map(i => `<option value="${i.id}" ${i.id === row.componentId ? 'selected' : ''}>${escapeHtml(i.name)}</option>`).join("")}
+      </select>
+      <input type="number" value="${row.quantity}" min="1" style="width:70px" placeholder="qty"
+        onchange="componentRows[${idx}].quantity = parseInt(this.value) || 1" />
+      <button class="icon-btn danger" onclick="removeComponentRow(${idx})">✕</button>
+    </div>
+  `).join("");
+}
+
+function addComponentRow() {
+  if (!allMenuItemsForComponents.length) { showToast("No menu items available."); return; }
+  const otherItems = allMenuItemsForComponents.filter(i => i.id !== currentSetMealItemId);
+  if (!otherItems.length) { showToast("No other items to add."); return; }
+  componentRows.push({ componentId: otherItems[0].id, quantity: 1 });
+  renderComponentRows();
+}
+
+function removeComponentRow(idx) {
+  componentRows.splice(idx, 1);
+  renderComponentRows();
+}
+
+async function saveComponents() {
+  try {
+    await api(`/menu-items/${currentSetMealItemId}/set-components`, {
+      method: "POST",
+      body: JSON.stringify({ components: componentRows.filter(r => r.componentId) })
+    });
+    showToast("Set meal components saved.");
+    closeComponentsModal();
+  } catch (err) { showToast(err.message); }
+}
 
 function logout() {
   localStorage.removeItem("pos_token");
@@ -600,6 +674,7 @@ function logout() {
           </button>
           <div class="item-actions">
             <button class="icon-btn" onclick="editItem('${item.id}')">✏️</button>
+            <button class="icon-btn" onclick="openComponentsModal('${item.id}', '${escapeHtml(item.name)}')" title="Set Meal Components">🧩</button>
             <button class="icon-btn danger" onclick="confirmDeleteItem('${item.id}', '${escapeHtml(item.name)}')">🗑️</button>
           </div>
         </div>

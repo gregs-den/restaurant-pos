@@ -342,7 +342,7 @@
         ${balance !== null && balance > 0 ? `<div class="line due"><span>Balance Due</span><span>₱${balance.toFixed(2)}</span></div>` : ""}
         ${o.paymentStatus === "PAID" ? `
         <div class="line paid-ok"><span>PAID IN FULL ✓</span><span></span></div>
-        <a href="/Projects%202026/restaurant-pos/public/receipt.html?orderId=${o.id}" target="_blank" style="display:block;text-align:center;margin-top:8px;padding:8px;background:#1f3a2a;color:#6fcf97;border-radius:4px;font-family:var(--font-body);font-size:13px;text-decoration:none;cursor:pointer">🖨️ Print Receipt</a>
+        <a href="/receipt.html?orderId=${o.id}" target="_blank" style="display:block;text-align:center;margin-top:8px;padding:8px;background:#1f3a2a;color:#6fcf97;border-radius:4px;font-family:var(--font-body);font-size:13px;text-decoration:none;cursor:pointer">🖨️ Print Receipt</a>
       ` : ""}
         ${paymentLog}
 
@@ -398,7 +398,7 @@
     document.getElementById("receipt-area").innerHTML = `<div class="no-selection">Select an order from the left to view its bill.</div>`;
     loadOrderList();
     // Open receipt in new tab
-    const url = `/Projects%202026/restaurant-pos/public/receipt.html?orderId=${orderId}`;
+    const url = `/receipt.html?orderId=${orderId}`;
     console.log(url);
     window.open(url, "_blank");
     });

@@ -19,6 +19,8 @@ router.get("/stock/low-stock", authenticate, inventoryController.getLowStockAler
 // Menu item ingredients (recipe)
 router.get("/menu-items/:menuItemId/ingredients", authenticate, inventoryController.getMenuItemIngredients)
 router.post("/menu-items/:menuItemId/ingredients", authenticate, requireRole("ADMIN", "MANAGER"), inventoryController.setMenuItemIngredients)
+router.get("/menu-items/:menuItemId/set-components", authenticate, inventoryController.getSetMealComponents)
+router.post("/menu-items/:menuItemId/set-components", authenticate, requireRole("ADMIN", "MANAGER"), inventoryController.setSetMealComponents)
 
 // Auto-deduct for order
 router.post("/orders/:id/deduct-stock", authenticate, inventoryController.deductStockForOrder)

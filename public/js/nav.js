@@ -15,6 +15,7 @@ const NAV_LINKS = [
 
   { section: "Reports", href: "/order-history.html", label: "📜 Order History", roles: ["ADMIN", "MANAGER", "CASHIER"] },
   { section: "Reports", href: "/reports.html", label: "📈 Sales Reports", roles: ["ADMIN", "MANAGER"] },
+  { section: "Management", href: "/table-management.html", label: "🪑 Table Management", roles: ["ADMIN", "MANAGER"] },
 ];
 
 function buildNavHTML() {
