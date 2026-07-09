@@ -197,3 +197,75 @@ export async function getSalesReport(req: AuthRequest, res: Response) {
     res.status(500).json({ error: err.message })
   }
 }
+
+export async function mergeTable(req: AuthRequest, res: Response) {
+  try {
+    const tableId = req.params.id as string
+    const { mergeIntoTableId } = req.body
+    const table = await orderService.mergeTable(tableId, mergeIntoTableId)
+    res.json(table)
+  } catch (err: any) {
+    res.status(400).json({ error: err.message })
+  }
+}
+
+export async function unmergeTable(req: AuthRequest, res: Response) {
+  try {
+    const tableId = req.params.id as string
+    const table = await orderService.unmergeTable(tableId)
+    res.json(table)
+  } catch (err: any) {
+    res.status(400).json({ error: err.message })
+  }
+}
+
+export async function listTablesWithMergeInfo(req: AuthRequest, res: Response) {
+  const tables = await orderService.getTablesWithMergeInfo()
+  res.json(tables)
+}
+
+export async function voidOrderItem(req: AuthRequest, res: Response) {
+  try {
+    const orderItemId = req.params.id as string
+    const { reason, approverPin } = req.body
+    if (!reason) return res.status(400).json({ error: "A reason is required." })
+    if (!approverPin) return res.status(400).json({ error: "Manager/Admin PIN required." })
+    const result = await orderService.voidOrderItem(orderItemId, {
+      reason, approverPin, voidedByUserId: req.user!.userId,
+    })
+    res.json(result)
+  } catch (err: any) {
+    res.status(400).json({ error: err.message })
+  }
+}
+
+export async function voidOrder(req: AuthRequest, res: Response) {
+  try {
+    const orderId = req.params.id as string
+    const { reason, approverPin } = req.body
+    if (!reason) return res.status(400).json({ error: "A reason is required." })
+    if (!approverPin) return res.status(400).json({ error: "Manager/Admin PIN required." })
+    const result = await orderService.voidOrder(orderId, {
+      reason, approverPin, voidedByUserId: req.user!.userId,
+    })
+    res.json(result)
+  } catch (err: any) {
+    res.status(400).json({ error: err.message })
+  }
+}
+
+export async function getVoidLogs(req: AuthRequest, res: Response) {
+  const { from, to } = req.query
+  const logs = await orderService.getVoidLogs({ from: from as string, to: to as string })
+  res.json(logs)
+}
+
+export async function updateTable(req: AuthRequest, res: Response) {
+  try {
+    const id = req.params.id as string
+    const table = await orderService.updateTable(id, req.body)
+    res.json(table)
+  } catch (err: any) {
+    res.status(400).json({ error: err.message })
+  }
+}

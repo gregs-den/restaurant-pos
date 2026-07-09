@@ -20,12 +20,23 @@ export async function createOrder(data: {
   orderType?: "DINE_IN" | "TAKEOUT" | "DELIVERY"
   notes?: string
 }) {
-  const order = await prisma.order.create({ data })
+  let effectiveTableId = data.tableId
 
-  // Mark table as occupied if dine-in
+  // If this table is merged into another, route the order to the primary table
   if (data.tableId) {
+    const table = await prisma.table.findUnique({ where: { id: data.tableId } })
+    if (table?.mergedWithTableId) {
+      effectiveTableId = table.mergedWithTableId
+    }
+  }
+
+  const order = await prisma.order.create({
+    data: { ...data, tableId: effectiveTableId },
+  })
+
+  if (effectiveTableId) {
     await prisma.table.update({
-      where: { id: data.tableId },
+      where: { id: effectiveTableId },
       data: { status: "OCCUPIED" },
     })
   }
@@ -391,4 +402,161 @@ export async function getSalesReport(from: string, to: string) {
     dailyBreakdown,
     orders,
   }
+}
+
+export async function mergeTable(tableId: string, mergeIntoTableId: string) {
+  if (tableId === mergeIntoTableId) throw new Error("Cannot merge a table with itself.")
+
+  const target = await prisma.table.findUnique({ where: { id: mergeIntoTableId } })
+  if (!target) throw new Error("Target table not found.")
+  if (target.mergedWithTableId) throw new Error("Target table is itself merged into another table. Merge into the primary table instead.")
+
+  return prisma.table.update({
+    where: { id: tableId },
+    data: {
+      mergedWithTableId: mergeIntoTableId,
+      status: "OCCUPIED",
+    },
+  })
+}
+
+export async function unmergeTable(tableId: string) {
+  return prisma.table.update({
+    where: { id: tableId },
+    data: { mergedWithTableId: null, status: "AVAILABLE" },
+  })
+}
+
+export async function getTablesWithMergeInfo() {
+  const tables = await prisma.table.findMany({
+    include: { mergedTables: true, mergedWithTable: true },
+    orderBy: { tableNumber: "asc" },
+  })
+  return tables
+}
+
+export async function verifyManagerPin(pin: string) {
+  const user = await prisma.user.findFirst({
+    where: { pin, isActive: true, role: { in: ["ADMIN", "MANAGER"] } },
+  })
+  if (!user) throw new Error("Invalid PIN or insufficient permissions.")
+  return user
+}
+
+export async function voidOrderItem(orderItemId: string, data: {
+  reason: string
+  approverPin: string
+  voidedByUserId: string
+}) {
+  const approver = await verifyManagerPin(data.approverPin)
+
+  const orderItem = await prisma.orderItem.findUnique({
+    where: { id: orderItemId },
+    include: { menuItem: true, order: true },
+  })
+  if (!orderItem) throw new Error("Order item not found.")
+  if (orderItem.status === "CANCELLED") throw new Error("Item is already voided.")
+
+  await prisma.orderItem.update({
+    where: { id: orderItemId },
+    data: { status: "CANCELLED" },
+  })
+
+  await prisma.voidLog.create({
+    data: {
+      type: "ITEM",
+      orderId: orderItem.orderId,
+      orderItemId: orderItem.id,
+      itemName: orderItem.menuItem.name,
+      quantity: orderItem.quantity,
+      amount: Number(orderItem.subtotal),
+      reason: data.reason,
+      voidedBy: data.voidedByUserId,
+      approvedBy: approver.id,
+    },
+  })
+
+  // Recalculate the bill since an item was removed
+  await calculateBill(orderItem.orderId)
+
+  return { message: "Item voided successfully." }
+}
+
+export async function voidOrder(orderId: string, data: {
+  reason: string
+  approverPin: string
+  voidedByUserId: string
+}) {
+  const approver = await verifyManagerPin(data.approverPin)
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { orderItems: { include: { menuItem: true } }, table: true },
+  })
+  if (!order) throw new Error("Order not found.")
+  if (order.status === "CANCELLED") throw new Error("Order is already voided.")
+
+  const totalAmount = order.orderItems.reduce((s, i) => s + Number(i.subtotal), 0)
+
+  await prisma.order.update({
+    where: { id: orderId },
+    data: { status: "CANCELLED" },
+  })
+
+  await prisma.orderItem.updateMany({
+    where: { orderId },
+    data: { status: "CANCELLED" },
+  })
+
+  await prisma.voidLog.create({
+    data: {
+      type: "ORDER",
+      orderId: order.id,
+      itemName: `Full Order (${order.orderItems.length} items)`,
+      quantity: order.orderItems.length,
+      amount: totalAmount,
+      reason: data.reason,
+      voidedBy: data.voidedByUserId,
+      approvedBy: approver.id,
+    },
+  })
+
+  // Free up the table if it was occupied
+  if (order.tableId) {
+    await prisma.table.update({
+      where: { id: order.tableId },
+      data: { status: "AVAILABLE" },
+    })
+  }
+
+  return { message: "Order voided successfully." }
+}
+
+export async function getVoidLogs(filters?: { from?: string; to?: string }) {
+  const where: any = {}
+  if (filters?.from || filters?.to) {
+    where.createdAt = {}
+    if (filters.from) where.createdAt.gte = new Date(filters.from)
+    if (filters.to) where.createdAt.lte = new Date(filters.to)
+  }
+
+  const logs = await prisma.voidLog.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+  })
+
+  // Attach user names
+  const userIds = [...new Set([...logs.map(l => l.voidedBy), ...logs.map(l => l.approvedBy)])]
+  const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } })
+  const userMap = Object.fromEntries(users.map(u => [u.id, u.name]))
+
+  return logs.map(l => ({
+    ...l,
+    voidedByName: userMap[l.voidedBy] || "Unknown",
+    approvedByName: userMap[l.approvedBy] || "Unknown",
+  }))
+}
+
+export async function updateTable(id: string, data: { tableNumber?: string; capacity?: number; floorSection?: string }) {
+  return prisma.table.update({ where: { id }, data })
 }

@@ -7,6 +7,7 @@ const NAV_LINKS = [
   { section: "Operations", href: "/kitchen-display.html", label: "🔥 Kitchen Display", roles: ["ADMIN", "MANAGER", "CASHIER", "WAITER"] },
   { section: "Operations", href: "/cashier-billing.html", label: "🧾 Cashier / Billing", roles: ["ADMIN", "MANAGER", "CASHIER"] },
   { section: "Operations", href: "/reservations.html", label: "📅 Reservations", roles: ["ADMIN", "MANAGER", "CASHIER", "WAITER"] },
+  { section: "Operations", href: "/table-management.html", label: "🪑 Table Management", roles: ["ADMIN", "MANAGER", "WAITER"] },
 
   { section: "Management", href: "/menu-management.html", label: "🍽️ Menu Management", roles: ["ADMIN", "MANAGER"] },
   { section: "Management", href: "/user-management.html", label: "👥 User Management", roles: ["ADMIN"] },
@@ -15,7 +16,7 @@ const NAV_LINKS = [
 
   { section: "Reports", href: "/order-history.html", label: "📜 Order History", roles: ["ADMIN", "MANAGER", "CASHIER"] },
   { section: "Reports", href: "/reports.html", label: "📈 Sales Reports", roles: ["ADMIN", "MANAGER"] },
-  { section: "Management", href: "/table-management.html", label: "🪑 Table Management", roles: ["ADMIN", "MANAGER"] },
+  { section: "Reports", href: "/void-logs.html", label: "🚫 Void Logs", roles: ["ADMIN", "MANAGER"] },
 ];
 
 function buildNavHTML() {

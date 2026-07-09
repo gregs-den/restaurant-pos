@@ -30,6 +30,7 @@
   .table-card.OCCUPIED { border-color: #6b4a2d; background: #261e1a; }
   .table-card.RESERVED { border-color: #4a4a6b; background: #1e1e26; }
   .table-card.BILLING { border-color: #6b2d2d; background: #261a1a; }
+  .table-card.is-merged-child { opacity: 0.7; border-style: dashed; }
 
   .table-number { font-family: var(--font-display); font-size: 22px; font-weight: bold; margin-bottom: 4px; }
   .table-meta { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
@@ -41,6 +42,10 @@
   .badge-OCCUPIED { background: #3a2a1f; color: #f2994a; }
   .badge-RESERVED { background: #2a2a3a; color: #9b9ef7; }
   .badge-BILLING { background: #3a1f1f; color: #eb5757; }
+  .merge-badge {
+    display: block; font-size: 10px; background: #2a2a3a; color: #9b9ef7;
+    padding: 3px 8px; border-radius: 6px; margin-bottom: 8px;
+  }
 
   .table-actions { display: flex; gap: 6px; flex-wrap: wrap; }
   .btn {
@@ -143,6 +148,22 @@
   </div>
 </div>
 
+<!-- Merge Table Modal -->
+<div class="modal-bg" id="merge-modal">
+  <div class="modal">
+    <h3 id="merge-modal-title">Merge Table</h3>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:14px">This table's orders and bill will combine with the table you choose below.</div>
+    <div class="field">
+      <label>Merge Into</label>
+      <select id="merge-target"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeMergeModal()">Cancel</button>
+      <button class="btn btn-accent" onclick="confirmMerge()">Merge</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="/js/nav.js"></script>
@@ -153,6 +174,7 @@
 
   let tables = [];
   let editingId = null;
+  let mergeSourceId = null;
 
   function logout() {
     localStorage.removeItem("pos_token");
@@ -174,7 +196,7 @@
 
   async function loadTables() {
     try {
-      tables = await api("/tables");
+      tables = await api("/tables/with-merge-info");
       renderStats();
       renderTables();
     } catch (err) {
@@ -201,12 +223,19 @@
       grid.innerHTML = `<div class="empty-state">No tables yet. Click "+ Add Table" to create your first one (e.g. T1, T2).</div>`;
       return;
     }
-    grid.innerHTML = tables.map(t => `
-      <div class="table-card ${t.status}">
+    grid.innerHTML = tables.map(t => {
+      const isMergedChild = !!t.mergedWithTableId;
+      const parentTable = isMergedChild ? tables.find(x => x.id === t.mergedWithTableId) : null;
+      const childTables = tables.filter(x => x.mergedWithTableId === t.id);
+
+      return `
+      <div class="table-card ${t.status} ${isMergedChild ? 'is-merged-child' : ''}">
         <div class="table-number">${escapeHtml(t.tableNumber)}</div>
         <div class="table-meta">👥 Seats ${t.capacity}${t.floorSection ? ` · ${escapeHtml(t.floorSection)}` : ""}</div>
+        ${isMergedChild ? `<div class="merge-badge">🔗 Merged into ${escapeHtml(parentTable ? parentTable.tableNumber : '?')}</div>` : ""}
+        ${childTables.length > 0 ? `<div class="merge-badge">🔗 Combined with ${childTables.map(c => escapeHtml(c.tableNumber)).join(", ")}</div>` : ""}
         <span class="table-status-badge badge-${t.status}">${t.status}</span>
-        <select class="status-select-sm" onchange="quickStatusChange('${t.id}', this.value)">
+        <select class="status-select-sm" onchange="quickStatusChange('${t.id}', this.value)" ${isMergedChild ? 'disabled title="Managed via primary table"' : ''}>
           <option value="AVAILABLE" ${t.status === "AVAILABLE" ? "selected" : ""}>Available</option>
           <option value="OCCUPIED" ${t.status === "OCCUPIED" ? "selected" : ""}>Occupied</option>
           <option value="RESERVED" ${t.status === "RESERVED" ? "selected" : ""}>Reserved</option>
@@ -214,15 +243,63 @@
         </select>
         <div class="table-actions" style="margin-top:8px">
           <button class="btn btn-ghost" onclick="editTable('${t.id}')">✏️ Edit</button>
+          ${isMergedChild
+            ? `<button class="btn btn-danger" onclick="unmergeTable('${t.id}')">🔓 Unmerge</button>`
+            : `<button class="btn btn-ghost" onclick="openMergeModal('${t.id}', '${escapeHtml(t.tableNumber)}')">🔗 Merge</button>`
+          }
         </div>
       </div>
-    `).join("");
+    `;
+    }).join("");
   }
 
   async function quickStatusChange(id, status) {
     try {
       await api(`/tables/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
       showToast("Table status updated.");
+      await loadTables();
+    } catch (err) { showToast(err.message); }
+  }
+
+  // ---- Merge / Unmerge ----
+  function openMergeModal(tableId, tableNumber) {
+    mergeSourceId = tableId;
+    document.getElementById("merge-modal-title").textContent = `Merge ${tableNumber} Into…`;
+
+    const candidates = tables.filter(t => t.id !== tableId && !t.mergedWithTableId && !tables.some(x => x.mergedWithTableId === t.id && x.id !== tableId));
+    const sel = document.getElementById("merge-target");
+    if (!candidates.length) {
+      sel.innerHTML = `<option value="">No available tables to merge with</option>`;
+    } else {
+      sel.innerHTML = candidates.map(t => `<option value="${t.id}">${escapeHtml(t.tableNumber)} (seats ${t.capacity})</option>`).join("");
+    }
+    document.getElementById("merge-modal").classList.add("open");
+  }
+
+  function closeMergeModal() {
+    document.getElementById("merge-modal").classList.remove("open");
+    mergeSourceId = null;
+  }
+
+  async function confirmMerge() {
+    const targetId = document.getElementById("merge-target").value;
+    if (!targetId) { showToast("Select a table to merge into."); return; }
+    try {
+      await api(`/tables/${mergeSourceId}/merge`, {
+        method: "POST",
+        body: JSON.stringify({ mergeIntoTableId: targetId })
+      });
+      showToast("Tables merged. Orders will now combine into one bill.");
+      closeMergeModal();
+      await loadTables();
+    } catch (err) { showToast(err.message); }
+  }
+
+  async function unmergeTable(tableId) {
+    if (!confirm("Unmerge this table? It will become independent again.")) return;
+    try {
+      await api(`/tables/${tableId}/unmerge`, { method: "POST" });
+      showToast("Table unmerged.");
       await loadTables();
     } catch (err) { showToast(err.message); }
   }
@@ -252,11 +329,8 @@
 
     try {
       if (editingId) {
-        // No PUT endpoint for full table edit yet — just update status endpoint won't cover this,
-        // so for now just re-create isn't ideal. We'll just notify if trying to rename.
-        showToast("Editing table number isn't supported yet — only status can be changed for existing tables.");
-        closeTableModal();
-        return;
+        await api(`/tables/${editingId}`, { method: "PUT", body: JSON.stringify({ tableNumber, capacity, floorSection: floorSection || undefined }) });
+        showToast("Table updated.");
       } else {
         await api("/tables", { method: "POST", body: JSON.stringify({ tableNumber, capacity, floorSection: floorSection || undefined }) });
         showToast("Table created.");
@@ -265,7 +339,7 @@
       await loadTables();
     } catch (err) { showToast(err.message); }
   }
-
+  
   function showToast(msg) {
     const toast = document.getElementById("toast");
     toast.textContent = msg;

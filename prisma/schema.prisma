@@ -164,17 +164,20 @@ model Modifier {
 // ============================================================
 
 model Table {
-  id            String      @id @default(uuid())
-  tableNumber   String      @unique @map("table_number") // e.g. "T1", "T2"
-  capacity      Int         @default(4)
-  status        TableStatus @default(AVAILABLE)
-  floorSection  String?     @map("floor_section") // e.g. "Ground Floor", "2nd Floor", "Outdoor"
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
+  id                String      @id @default(uuid())
+  tableNumber       String      @unique @map("table_number") // e.g. "T1", "T2"
+  capacity          Int         @default(4)
+  status            TableStatus @default(AVAILABLE)
+  floorSection      String?     @map("floor_section") // e.g. "Ground Floor", "2nd Floor", "Outdoor"
+  mergedWithTableId String?     @map("merged_with_table_id")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
 
   // Relations
-  orders        Order[]
-  reservations  Reservation[]
+  mergedWithTable   Table?        @relation("TableMerge", fields: [mergedWithTableId], references: [id])
+  mergedTables      Table[]       @relation("TableMerge")
+  orders            Order[]
+  reservations      Reservation[]
 
   @@map("tables")
 }
@@ -398,4 +401,25 @@ model OrderItemComponent {
   component      MenuItem  @relation(fields: [componentId], references: [id])
 
   @@map("order_item_components")
+}
+
+enum VoidType {
+  ITEM
+  ORDER
+}
+
+model VoidLog {
+  id             String    @id @default(uuid())
+  type           VoidType
+  orderId        String    @map("order_id")
+  orderItemId    String?   @map("order_item_id")
+  itemName       String    @map("item_name")
+  quantity       Int
+  amount         Decimal   @db.Decimal(10, 2)
+  reason         String
+  voidedBy       String    @map("voided_by")       // staff who requested the void
+  approvedBy     String    @map("approved_by")     // manager/admin who approved via PIN
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@map("void_logs")
 }

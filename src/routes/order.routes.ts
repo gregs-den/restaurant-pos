@@ -7,7 +7,11 @@ const router = Router()
 
 // Tables
 router.get("/tables", authenticate, orderController.listTables)
-router.post("/tables", authenticate, requireRole("ADMIN", "MANAGER"), orderController.createTable)
+router.post("/tables", authenticate, requireRole("ADMIN", "MANAGER","WAITER"), orderController.createTable)
+router.put("/tables/:id", authenticate, requireRole("ADMIN", "MANAGER", "WAITER"), orderController.updateTable)
+router.get("/tables/with-merge-info", authenticate, orderController.listTablesWithMergeInfo)
+router.post("/tables/:id/merge", authenticate, requireRole("ADMIN", "MANAGER", "CASHIER", "WAITER"), orderController.mergeTable)
+router.post("/tables/:id/unmerge", authenticate, requireRole("ADMIN", "MANAGER", "CASHIER", "WAITER"), orderController.unmergeTable)
 router.patch("/tables/:id/status", authenticate, orderController.updateTableStatus)
 
 // Kitchen (must come BEFORE /orders/:id so "kitchen" isn't matched as an :id)
@@ -19,6 +23,9 @@ router.get("/reports/sales", authenticate, requireRole("ADMIN", "MANAGER"), orde
 // Orders
 router.get("/orders/history", authenticate, orderController.getOrderHistory)
 router.post("/orders", authenticate, orderController.createOrder)
+router.post("/order-items/:id/void", authenticate, orderController.voidOrderItem)
+router.post("/orders/:id/void", authenticate, orderController.voidOrder)
+router.get("/void-logs", authenticate, requireRole("ADMIN", "MANAGER"), orderController.getVoidLogs)
 router.get("/orders/:id", authenticate, orderController.getOrder)
 router.patch("/orders/:id/status", authenticate, orderController.updateOrderStatus)
 

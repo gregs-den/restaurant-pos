@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Void Logs</title>
+<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/css/nav.css">
+<style>
+  .header-right { display: flex; gap: 8px; align-items: center; }
+
+  .filter-bar {
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    padding: 14px 24px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  }
+  .filter-bar label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .filter-bar input {
+    padding: 7px 10px; border-radius: 5px; border: 1px solid var(--border);
+    background: var(--card); color: #eee; font-size: 13px;
+  }
+  .btn {
+    padding: 8px 16px; border-radius: 5px; border: none;
+    font-size: 13px; cursor: pointer; font-family: var(--font-body); font-weight: 600;
+  }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-accent:hover { background: var(--accent-dark); }
+  .btn-ghost { background: #2a3336; color: #eee; }
+  .btn-ghost:hover { background: #333d41; }
+
+  .main { padding: 24px; }
+
+  .stats-bar { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+  .stat-chip { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 10px 16px; }
+  .stat-chip .num { font-family: var(--font-display); font-size: 20px; font-weight: bold; color: var(--accent); }
+  .stat-chip .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-chip.danger .num { color: var(--danger); }
+
+  .empty-state { text-align: center; color: var(--muted); padding: 60px 20px; }
+
+  .void-table { width: 100%; border-collapse: collapse; }
+  .void-table th {
+    text-align: left; border-bottom: 1px solid var(--border); padding: 10px 12px;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted);
+  }
+  .void-table td { padding: 12px; border-bottom: 1px solid #1e2528; font-size: 13px; }
+  .void-table tr:hover td { background: #1e2528; }
+
+  .type-badge {
+    display: inline-block; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.5px; padding: 3px 8px; border-radius: 10px;
+  }
+  .type-ITEM { background: #2a2a3a; color: #9b9ef7; }
+  .type-ORDER { background: #3a1f1f; color: #eb5757; }
+
+  .amount-val { font-family: var(--font-display); color: var(--danger); font-weight: bold; }
+  .reason-text { color: var(--muted); font-style: italic; }
+  .tbl-scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🚫 Void Logs</h1>
+  <div class="header-right">
+    <div id="nav-container"></div>
+    <button class="btn btn-ghost" onclick="logout()">Logout</button>
+  </div>
+</header>
+
+<div class="filter-bar">
+  <label>From</label>
+  <input type="date" id="from-date" />
+  <label>To</label>
+  <input type="date" id="to-date" />
+  <button class="btn btn-accent" onclick="loadVoidLogs()">Filter</button>
+  <button class="btn btn-ghost" onclick="clearFilter()">Clear</button>
+</div>
+
+<div class="main">
+  <div class="stats-bar" id="stats-bar"></div>
+
+  <div class="tbl-scroll">
+    <table class="void-table" id="void-table">
+      <thead>
+        <tr>
+          <th>Date/Time</th>
+          <th>Type</th>
+          <th>Item / Order</th>
+          <th>Qty</th>
+          <th>Amount</th>
+          <th>Reason</th>
+          <th>Voided By</th>
+          <th>Approved By</th>
+        </tr>
+      </thead>
+      <tbody id="void-tbody">
+        <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:40px">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script src="/js/nav.js"></script>
+<script>
+  const API_BASE = window.location.origin;
+  const TOKEN = localStorage.getItem("pos_token");
+  if (!TOKEN) window.location.href = "/";
+
+  function logout() {
+    localStorage.removeItem("pos_token");
+    localStorage.removeItem("pos_role");
+    localStorage.removeItem("pos_user");
+    window.location.href = "/index.html";
+  }
+
+  async function api(path, options = {}) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN}`, ...(options.headers || {}) }
+    });
+    if (res.status === 401) { logout(); return; }
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  }
+
+  function clearFilter() {
+    document.getElementById("from-date").value = "";
+    document.getElementById("to-date").value = "";
+    loadVoidLogs();
+  }
+
+  async function loadVoidLogs() {
+    const from = document.getElementById("from-date").value;
+    const to = document.getElementById("to-date").value;
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+
+    try {
+      const logs = await api(`/void-logs?${params.toString()}`);
+      renderStats(logs);
+      renderTable(logs);
+    } catch (err) {
+      document.getElementById("void-tbody").innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:40px">Failed to load void logs.</td></tr>`;
+    }
+  }
+
+  function renderStats(logs) {
+    const totalVoids = logs.length;
+    const totalAmount = logs.reduce((s, l) => s + Number(l.amount), 0);
+    const itemVoids = logs.filter(l => l.type === "ITEM").length;
+    const orderVoids = logs.filter(l => l.type === "ORDER").length;
+
+    document.getElementById("stats-bar").innerHTML = `
+      <div class="stat-chip"><div class="num">${totalVoids}</div><div class="lbl">Total Voids</div></div>
+      <div class="stat-chip danger"><div class="num">₱${totalAmount.toFixed(2)}</div><div class="lbl">Total Value Voided</div></div>
+      <div class="stat-chip"><div class="num">${itemVoids}</div><div class="lbl">Item Voids</div></div>
+      <div class="stat-chip"><div class="num">${orderVoids}</div><div class="lbl">Full Order Voids</div></div>
+    `;
+  }
+
+  function renderTable(logs) {
+    const tbody = document.getElementById("void-tbody");
+    if (!logs.length) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:40px">No voids recorded in this range. That's a good sign! ✅</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = logs.map(l => {
+      const dt = new Date(l.createdAt).toLocaleString("en-PH", { dateStyle: "short", timeStyle: "short" });
+      return `
+        <tr>
+          <td>${dt}</td>
+          <td><span class="type-badge type-${l.type}">${l.type}</span></td>
+          <td>${escapeHtml(l.itemName)}</td>
+          <td>${l.quantity}</td>
+          <td class="amount-val">₱${Number(l.amount).toFixed(2)}</td>
+          <td class="reason-text">"${escapeHtml(l.reason)}"</td>
+          <td>${escapeHtml(l.voidedByName)}</td>
+          <td>${escapeHtml(l.approvedByName)}</td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  loadVoidLogs();
+</script>
+</body>
+</html>
