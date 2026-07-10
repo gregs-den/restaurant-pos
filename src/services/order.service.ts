@@ -156,10 +156,9 @@ export async function calculateBill(orderId: string) {
 
   if (!order) throw new Error("Order not found")
 
-  const subtotal = order.orderItems.reduce(
-    (sum, item) => sum + Number(item.subtotal),
-    0
-  )
+  const subtotal = order.orderItems
+    .filter(item => item.status !== "CANCELLED")
+    .reduce((sum, item) => sum + Number(item.subtotal), 0)
 
   const discountAmount = Number(order.discountAmount || 0)
   const taxableAmount = subtotal - discountAmount

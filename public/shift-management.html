@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Shift / Cash Drawer</title>
+<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/css/nav.css">
+<style>
+  .header-right { display: flex; gap: 8px; align-items: center; }
+
+  .main { padding: 24px; max-width: 900px; margin: 0 auto; }
+
+  .btn {
+    padding: 8px 16px; border-radius: 5px; border: none;
+    font-size: 13px; cursor: pointer; font-family: var(--font-body); font-weight: 600;
+  }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-accent:hover { background: var(--accent-dark); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-ghost { background: #2a3336; color: #eee; }
+  .btn-ghost:hover { background: #333d41; }
+  .btn-lg { padding: 12px 24px; font-size: 15px; }
+
+  /* ---- No shift state ---- */
+  .no-shift-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 40px; text-align: center;
+  }
+  .no-shift-card .icon { font-size: 40px; margin-bottom: 12px; }
+  .no-shift-card h2 { margin: 0 0 8px; font-size: 18px; }
+  .no-shift-card p { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+
+  /* ---- Active shift card ---- */
+  .shift-card {
+    background: var(--card); border: 2px solid var(--accent); border-radius: 10px;
+    padding: 24px; margin-bottom: 20px;
+  }
+  .shift-status-badge {
+    display: inline-block; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.5px; padding: 4px 10px; border-radius: 12px;
+    background: #1f3a2a; color: #6fcf97; margin-bottom: 12px;
+  }
+  .shift-meta { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 20px; }
+  .kpi {
+    background: #1a2022; border: 1px solid var(--border); border-radius: 8px; padding: 16px;
+  }
+  .kpi .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 6px; }
+  .kpi .value { font-family: var(--font-display); font-size: 22px; font-weight: bold; color: var(--accent); }
+
+  .pay-breakdown { margin-bottom: 20px; }
+  .pay-breakdown h3 { font-size: 12px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .pay-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .pay-row:last-child { border-bottom: none; }
+
+  /* ---- Modal ---- */
+  .modal-bg {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 28px; width: 100%; max-width: 420px;
+  }
+  .modal h3 { margin: 0 0 20px; font-size: 16px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+  .field input, .field textarea {
+    width: 100%; padding: 10px; border-radius: 5px;
+    border: 1px solid var(--border); background: #1a2022; color: #eee;
+    font-size: 15px; font-family: var(--font-body); box-sizing: border-box;
+  }
+  .field textarea { resize: vertical; min-height: 60px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+  .close-summary {
+    background: #1a2022; border-radius: 8px; padding: 16px; margin-bottom: 16px; font-size: 13px;
+  }
+  .close-summary-row { display: flex; justify-content: space-between; padding: 4px 0; }
+  .close-summary-row.total { font-weight: bold; border-top: 1px solid var(--border); margin-top: 6px; padding-top: 8px; }
+
+  .over-short-badge {
+    text-align: center; padding: 10px; border-radius: 8px; font-weight: bold; margin-top: 12px;
+  }
+  .over-short-badge.over { background: #1f3a2a; color: #6fcf97; }
+  .over-short-badge.short { background: #3a1f1f; color: #eb5757; }
+  .over-short-badge.exact { background: #2a2a3a; color: #9b9ef7; }
+
+  /* ---- History ---- */
+  .section-head { display: flex; justify-content: space-between; align-items: center; margin: 32px 0 16px; }
+  .section-head h2 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+
+  .history-table { width: 100%; border-collapse: collapse; }
+  .history-table th { text-align: left; border-bottom: 1px solid var(--border); padding: 8px; font-size: 11px; text-transform: uppercase; color: var(--muted); }
+  .history-table td { padding: 10px 8px; border-bottom: 1px solid #1e2528; font-size: 13px; }
+  .os-pos { color: #6fcf97; }
+  .os-neg { color: #eb5757; }
+  .os-zero { color: var(--muted); }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--accent-dark); color: #fff;
+    padding: 10px 20px; border-radius: 6px; font-size: 13px;
+    opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 200;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>💵 Shift / Cash Drawer</h1>
+  <div class="header-right">
+    <div id="nav-container"></div>
+    <button class="btn btn-ghost" onclick="logout()">Logout</button>
+  </div>
+</header>
+
+<div class="main">
+  <div id="shift-area">
+    <div class="no-shift-card">Loading…</div>
+  </div>
+
+  <div class="section-head">
+    <h2>Shift History</h2>
+  </div>
+  <div style="overflow-x:auto">
+    <table class="history-table" id="history-table">
+      <thead>
+        <tr>
+          <th>Opened</th>
+          <th>Closed</th>
+          <th>Cashier</th>
+          <th>Starting</th>
+          <th>Expected</th>
+          <th>Counted</th>
+          <th>Over/Short</th>
+        </tr>
+      </thead>
+      <tbody id="history-tbody">
+        <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Open Shift Modal -->
+<div class="modal-bg" id="open-modal">
+  <div class="modal">
+    <h3>Open Shift</h3>
+    <div class="field">
+      <label>Starting Cash (Float)</label>
+      <input type="number" id="open-starting-cash" placeholder="e.g. 2000.00" step="0.01" />
+    </div>
+    <div class="field">
+      <label>Notes (optional)</label>
+      <textarea id="open-notes" placeholder="e.g. Morning shift"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeOpenModal()">Cancel</button>
+      <button class="btn btn-accent" onclick="confirmOpenShift()">Open Shift</button>
+    </div>
+  </div>
+</div>
+
+<!-- Close Shift Modal -->
+<div class="modal-bg" id="close-modal">
+  <div class="modal">
+    <h3>Close Shift</h3>
+    <div class="close-summary" id="close-summary"></div>
+    <div class="field">
+      <label>Actual Cash Counted</label>
+      <input type="number" id="close-counted-cash" placeholder="Count your drawer and enter total" step="0.01" oninput="previewOverShort()" />
+    </div>
+    <div id="over-short-preview"></div>
+    <div class="field" style="margin-top:12px">
+      <label>Notes (optional)</label>
+      <textarea id="close-notes" placeholder="e.g. explanation for discrepancy"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeCloseModal()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmCloseShift()">Close Shift</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/js/nav.js"></script>
+<script>
+  const API_BASE = window.location.origin;
+  const TOKEN = localStorage.getItem("pos_token");
+  if (!TOKEN) window.location.href = "/";
+
+  let currentShift = null;
+  let currentSummary = null;
+
+  function logout() {
+    localStorage.removeItem("pos_token");
+    localStorage.removeItem("pos_role");
+    localStorage.removeItem("pos_user");
+    window.location.href = "/index.html";
+  }
+
+  async function api(path, options = {}) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${TOKEN}`, ...(options.headers || {}) }
+    });
+    if (res.status === 401) { logout(); return; }
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  }
+
+  async function loadShiftArea() {
+    try {
+      currentShift = await api("/shifts/current");
+      if (currentShift) {
+        currentSummary = await api(`/shifts/${currentShift.id}/summary`);
+        renderActiveShift();
+      } else {
+        renderNoShift();
+      }
+    } catch (err) {
+      document.getElementById("shift-area").innerHTML = `<div class="no-shift-card">Failed to load shift data.</div>`;
+    }
+  }
+
+  function renderNoShift() {
+    document.getElementById("shift-area").innerHTML = `
+      <div class="no-shift-card">
+        <div class="icon">💤</div>
+        <h2>No Active Shift</h2>
+        <p>Open a shift to start tracking cash for this session.</p>
+        <button class="btn btn-accent btn-lg" onclick="openOpenModal()">+ Open Shift</button>
+      </div>
+    `;
+  }
+
+  function renderActiveShift() {
+    const s = currentShift;
+    const sum = currentSummary;
+    const openedTime = new Date(s.openedAt).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
+
+    const payHtml = Object.entries(sum.breakdown).map(([method, amount]) => `
+      <div class="pay-row"><span>${method}</span><span>₱${Number(amount).toFixed(2)}</span></div>
+    `).join("") || `<div class="pay-row"><span style="color:var(--muted)">No payments yet</span></div>`;
+
+    document.getElementById("shift-area").innerHTML = `
+      <div class="shift-card">
+        <span class="shift-status-badge">● Shift Open</span>
+        <div class="shift-meta">Opened ${openedTime}${s.notes ? ` · "${escapeHtml(s.notes)}"` : ""}</div>
+
+        <div class="kpi-row">
+          <div class="kpi"><div class="label">Starting Cash</div><div class="value">₱${Number(s.startingCash).toFixed(2)}</div></div>
+          <div class="kpi"><div class="label">Total Revenue</div><div class="value">₱${sum.totalRevenue.toFixed(2)}</div></div>
+          <div class="kpi"><div class="label">Orders Paid</div><div class="value">${sum.orderCount}</div></div>
+          <div class="kpi"><div class="label">Transactions</div><div class="value">${sum.totalTransactions}</div></div>
+        </div>
+
+        <div class="pay-breakdown">
+          <h3>Payment Method Breakdown</h3>
+          ${payHtml}
+        </div>
+
+        <button class="btn btn-danger btn-lg" style="width:100%" onclick="openCloseModal()">🔒 Close Shift</button>
+      </div>
+    `;
+  }
+
+  // ---- Open Shift ----
+  function openOpenModal() {
+    document.getElementById("open-starting-cash").value = "";
+    document.getElementById("open-notes").value = "";
+    document.getElementById("open-modal").classList.add("open");
+  }
+  function closeOpenModal() { document.getElementById("open-modal").classList.remove("open"); }
+
+  async function confirmOpenShift() {
+    const startingCash = parseFloat(document.getElementById("open-starting-cash").value);
+    if (isNaN(startingCash) || startingCash < 0) { showToast("Enter a valid starting cash amount."); return; }
+    try {
+      await api("/shifts/open", {
+        method: "POST",
+        body: JSON.stringify({ startingCash, notes: document.getElementById("open-notes").value.trim() || undefined })
+      });
+      showToast("Shift opened.");
+      closeOpenModal();
+      await loadShiftArea();
+    } catch (err) { showToast(err.message); }
+  }
+
+  // ---- Close Shift ----
+  function openCloseModal() {
+    const cashInDrawer = Number(currentShift.startingCash) + Number(currentSummary.breakdown.CASH || 0);
+    document.getElementById("close-summary").innerHTML = `
+      <div class="close-summary-row"><span>Starting Cash</span><span>₱${Number(currentShift.startingCash).toFixed(2)}</span></div>
+      <div class="close-summary-row"><span>+ Cash Payments</span><span>₱${Number(currentSummary.breakdown.CASH || 0).toFixed(2)}</span></div>
+      <div class="close-summary-row total"><span>Expected in Drawer</span><span>₱${cashInDrawer.toFixed(2)}</span></div>
+    `;
+    document.getElementById("close-counted-cash").value = "";
+    document.getElementById("close-notes").value = "";
+    document.getElementById("over-short-preview").innerHTML = "";
+    document.getElementById("close-modal").classList.add("open");
+  }
+  function closeCloseModal() { document.getElementById("close-modal").classList.remove("open"); }
+
+  function previewOverShort() {
+    const counted = parseFloat(document.getElementById("close-counted-cash").value);
+    const preview = document.getElementById("over-short-preview");
+    if (isNaN(counted)) { preview.innerHTML = ""; return; }
+
+    const expected = Number(currentShift.startingCash) + Number(currentSummary.breakdown.CASH || 0);
+    const diff = counted - expected;
+
+    if (Math.abs(diff) < 0.01) {
+      preview.innerHTML = `<div class="over-short-badge exact">✓ Exact match — no discrepancy</div>`;
+    } else if (diff > 0) {
+      preview.innerHTML = `<div class="over-short-badge over">Over by ₱${diff.toFixed(2)}</div>`;
+    } else {
+      preview.innerHTML = `<div class="over-short-badge short">Short by ₱${Math.abs(diff).toFixed(2)}</div>`;
+    }
+  }
+
+  async function confirmCloseShift() {
+    const endingCashCounted = parseFloat(document.getElementById("close-counted-cash").value);
+    if (isNaN(endingCashCounted) || endingCashCounted < 0) { showToast("Enter a valid cash count."); return; }
+    try {
+      await api(`/shifts/${currentShift.id}/close`, {
+        method: "POST",
+        body: JSON.stringify({ endingCashCounted, notes: document.getElementById("close-notes").value.trim() || undefined })
+      });
+      showToast("Shift closed.");
+      closeCloseModal();
+      await loadShiftArea();
+      await loadHistory();
+    } catch (err) { showToast(err.message); }
+  }
+
+  // ---- History ----
+  async function loadHistory() {
+    try {
+      const shifts = await api("/shifts/history");
+      const tbody = document.getElementById("history-tbody");
+      if (!shifts.length) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">No closed shifts yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = shifts.map(s => {
+        const opened = new Date(s.openedAt).toLocaleString("en-PH", { dateStyle: "short", timeStyle: "short" });
+        const closed = s.closedAt ? new Date(s.closedAt).toLocaleString("en-PH", { dateStyle: "short", timeStyle: "short" }) : "—";
+        const os = Number(s.overShort || 0);
+        const osClass = os > 0.01 ? "os-pos" : os < -0.01 ? "os-neg" : "os-zero";
+        const osLabel = os > 0.01 ? `+₱${os.toFixed(2)}` : os < -0.01 ? `-₱${Math.abs(os).toFixed(2)}` : "₱0.00";
+        return `
+          <tr>
+            <td>${opened}</td>
+            <td>${closed}</td>
+            <td>${escapeHtml(s.openedByName)}</td>
+            <td>₱${Number(s.startingCash).toFixed(2)}</td>
+            <td>₱${Number(s.expectedCash || 0).toFixed(2)}</td>
+            <td>₱${Number(s.endingCashCounted || 0).toFixed(2)}</td>
+            <td class="${osClass}">${osLabel}</td>
+          </tr>
+        `;
+      }).join("");
+    } catch (err) {
+      document.getElementById("history-tbody").innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">Failed to load history.</td></tr>`;
+    }
+  }
+
+  function showToast(msg) {
+    const toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 2500);
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  document.querySelectorAll(".modal-bg").forEach(bg => {
+    bg.addEventListener("click", e => { if (e.target === bg) bg.classList.remove("open"); });
+  });
+
+  loadShiftArea();
+  loadHistory();
+</script>
+</body>
+</html>

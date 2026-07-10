@@ -121,7 +121,9 @@ export async function applySpecialDiscount(orderId: string, type: "SENIOR" | "PW
   })
   if (!order) throw new Error("Order not found.")
 
-  const subtotal = order.orderItems.reduce((s, i) => s + Number(i.subtotal), 0) // gross, VAT-inclusive
+  const subtotal = order.orderItems
+  .filter(i => i.status !== "CANCELLED")
+  .reduce((s, i) => s + Number(i.subtotal), 0)
 
   const perPersonGross = totalPersons > 0 ? subtotal / totalPersons : subtotal
   const seniorGrossShare = perPersonGross * seniorCount

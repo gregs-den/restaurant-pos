@@ -423,3 +423,24 @@ model VoidLog {
 
   @@map("void_logs")
 }
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+}
+
+model Shift {
+  id              String      @id @default(uuid())
+  openedBy        String      @map("opened_by")
+  closedBy        String?     @map("closed_by")
+  startingCash    Decimal     @db.Decimal(10, 2) @map("starting_cash")
+  endingCashCounted Decimal?  @db.Decimal(10, 2) @map("ending_cash_counted")
+  expectedCash    Decimal?    @db.Decimal(10, 2) @map("expected_cash")
+  overShort       Decimal?    @db.Decimal(10, 2) @map("over_short")
+  status          ShiftStatus @default(OPEN)
+  notes           String?
+  openedAt        DateTime    @default(now()) @map("opened_at")
+  closedAt        DateTime?   @map("closed_at")
+
+  @@map("shifts")
+}

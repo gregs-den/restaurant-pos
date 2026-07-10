@@ -393,6 +393,7 @@
           <div class="line total"><span>Total</span><span>₱${Number(o.totalAmount).toFixed(2)}</span></div>
         ` : `<div class="line"><span>Bill not calculated yet</span><span></span></div>`}
         ${totalPaid > 0 ? `<div class="line paid-ok"><span>Paid</span><span>₱${totalPaid.toFixed(2)}</span></div>` : ""}
+        ${o.paymentStatus === "PAID" && totalPaid > totalDue ? `<div class="line paid-ok"><span>Change</span><span>₱${(totalPaid - totalDue).toFixed(2)}</span></div>` : ""}
         ${balance !== null && balance > 0 ? `<div class="line due"><span>Balance Due</span><span>₱${balance.toFixed(2)}</span></div>` : ""}
         ${o.paymentStatus === "PAID" ? `
         <div class="line paid-ok"><span>PAID IN FULL ✓</span><span></span></div>
@@ -541,10 +542,15 @@
         body: JSON.stringify({ type, seniorCount, totalPersons })
       });
       await refreshReceipt();
+      // Restore the values into the fresh input fields after re-render
+      const seniorEl = document.getElementById("senior-count");
+      const totalEl = document.getElementById("total-persons");
+      if (seniorEl) seniorEl.value = seniorCount;
+      if (totalEl) totalEl.value = totalPersons;
       showToast(`${type} discount applied — ₱${result.discountAmount.toFixed(2)} off`);
     } catch (err) { showToast(err.message); }
   }
-
+  
   // ---- Void ----
   function openVoidModal(type, id, name, qty, amount) {
     voidTarget = { type, id, name, qty, amount };

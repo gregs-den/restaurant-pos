@@ -8,6 +8,7 @@ const NAV_LINKS = [
   { section: "Operations", href: "/cashier-billing.html", label: "🧾 Cashier / Billing", roles: ["ADMIN", "MANAGER", "CASHIER"] },
   { section: "Operations", href: "/reservations.html", label: "📅 Reservations", roles: ["ADMIN", "MANAGER", "CASHIER", "WAITER"] },
   { section: "Operations", href: "/table-management.html", label: "🪑 Table Management", roles: ["ADMIN", "MANAGER", "WAITER"] },
+  { section: "Operations", href: "/shift-management.html", label: "💵 Shift / Cash Drawer", roles: ["ADMIN", "MANAGER", "CASHIER"] },
 
   { section: "Management", href: "/menu-management.html", label: "🍽️ Menu Management", roles: ["ADMIN", "MANAGER"] },
   { section: "Management", href: "/user-management.html", label: "👥 User Management", roles: ["ADMIN"] },
