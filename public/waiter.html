@@ -600,14 +600,32 @@
     btn.textContent = "Sending…";
 
     try {
-      // Create order
-      const order = await api("/orders", {
-        method: "POST",
-        body: JSON.stringify({
-          tableId: selectedType === "DINE_IN" ? selectedTableId : undefined,
-          orderType: selectedType,
-        })
-      });
+      let order = null;
+
+      // For dine-in, check if this table already has an active, unpaid order —
+      // if so, add these items to it instead of creating a separate bill.
+      if (selectedType === "DINE_IN" && selectedTableId) {
+        try {
+          const activeOrders = await api("/kitchen/orders");
+          order = activeOrders.find(o =>
+            o.table && o.table.id === selectedTableId &&
+            o.paymentStatus !== "PAID"
+          ) || null;
+        } catch (e) {
+          order = null; // fall through to creating a new order
+        }
+      }
+
+      // No existing order found — create a new one
+      if (!order) {
+        order = await api("/orders", {
+          method: "POST",
+          body: JSON.stringify({
+            tableId: selectedType === "DINE_IN" ? selectedTableId : undefined,
+            orderType: selectedType,
+          })
+        });
+      }
 
       // Add items one by one
       for (const item of cart) {
@@ -687,4 +705,4 @@
   init();
 </script>
 </body>
-</html> 
+</html>

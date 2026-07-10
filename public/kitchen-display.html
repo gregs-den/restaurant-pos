@@ -173,12 +173,15 @@ function logout() {
   const dot = document.getElementById("dot");
   const statusText = document.getElementById("status-text");
 
+  let mergeMap = {}; // primaryTableId -> [childTableNumber, ...]
+
   const socket = io(API_BASE);
 
   socket.on("connect", () => {
     dot.classList.add("live");
     statusText.textContent = "live";
     socket.emit("join-kitchen");
+    loadTableMergeInfo();
     loadOrders();
   });
 
@@ -191,6 +194,25 @@ function logout() {
   socket.on("new-order-item", loadOrders);
   socket.on("order-item-status-changed", loadOrders);
   socket.on("order-item-updated", loadOrders);
+
+  async function loadTableMergeInfo() {
+    try {
+      const res = await fetch(`${API_BASE}/tables/with-merge-info`, {
+        headers: { Authorization: `Bearer ${TOKEN}` }
+      });
+      if (!res.ok) return;
+      const tables = await res.json();
+      mergeMap = {};
+      tables.forEach(t => {
+        if (t.mergedWithTableId) {
+          if (!mergeMap[t.mergedWithTableId]) mergeMap[t.mergedWithTableId] = [];
+          mergeMap[t.mergedWithTableId].push(t.tableNumber);
+        }
+      });
+    } catch (err) {
+      console.error("Failed to load table merge info", err);
+    }
+  }
 
   async function loadOrders() {
     try {
@@ -213,6 +235,14 @@ const orders = await res.json();
     }
   }
 
+  function getTableLabel(order) {
+    if (!order.table) return order.orderType.replace("_", " ");
+    const children = mergeMap[order.table.id] || [];
+    return children.length > 0
+      ? `Table ${order.table.tableNumber} + ${children.join(" + ")}`
+      : `Table ${order.table.tableNumber}`;
+  }
+
   function renderOrders(orders) {
     if (!orders || orders.length === 0) {
       board.innerHTML = `<div class="empty-state">No active orders. Kitchen is clear.</div>`;
@@ -220,7 +250,7 @@ const orders = await res.json();
     }
 
     board.innerHTML = orders.map(order => {
-      const tableLabel = order.table ? `Table ${order.table.tableNumber}` : order.orderType.replace("_", " ");
+      const tableLabel = getTableLabel(order);
       const time = new Date(order.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
       const items = order.orderItems.map(item => `

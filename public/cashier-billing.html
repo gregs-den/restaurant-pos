@@ -91,7 +91,7 @@
     margin-bottom: 14px;
   }
   .rule { border-top: 1px dashed var(--paper-edge); margin: 12px 0; }
-  .line { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
+  .line { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 3px 0; }
   .line .name { flex: 1; padding-right: 8px; }
   .line.total { font-weight: bold; font-size: 16px; }
   .line.due { color: var(--due); font-weight: bold; }
@@ -172,6 +172,14 @@
     pointer-events: none;
   }
   .toast.show { opacity: 1; }
+  .void-item-btn {
+    margin-left: 6px; padding: 2px 6px; border: 1px solid var(--due); background: transparent;
+    color: var(--due); border-radius: 3px; font-size: 10px; cursor: pointer; font-family: var(--font-body);
+  }
+  .void-order-btn {
+    width: 100%; padding: 8px; border: 1px solid var(--due); background: transparent;
+    color: var(--due); border-radius: 4px; font-size: 12px; cursor: pointer; font-family: var(--font-body); margin-bottom: 12px;
+  }
 </style>
 </head>
 <body>
@@ -208,6 +216,22 @@
   </div>
 </div>
 
+<!-- Void Modal -->
+<div id="void-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:300;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:24px;width:100%;max-width:380px">
+    <h3 id="void-modal-title" style="margin:0 0 6px;color:#eee;font-family:var(--font-body);font-size:16px">Void Item</h3>
+    <div id="void-item-summary" style="color:var(--muted);font-size:13px;margin-bottom:14px"></div>
+    <label style="display:block;font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:5px">Reason</label>
+    <input type="text" id="void-reason" placeholder="e.g. wrong order, customer changed mind" style="width:100%;padding:9px;border-radius:5px;border:1px solid var(--border);background:#1a2022;color:#eee;margin-bottom:14px;box-sizing:border-box;font-family:var(--font-body)" />
+    <label style="display:block;font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:5px">Manager/Admin PIN</label>
+    <input type="password" id="void-pin" placeholder="4-digit PIN" maxlength="4" style="width:100%;padding:9px;border-radius:5px;border:1px solid var(--border);background:#1a2022;color:#eee;margin-bottom:18px;box-sizing:border-box;font-family:var(--font-body)" />
+    <div style="display:flex;gap:8px">
+      <button onclick="closeVoidModal()" style="flex:1;padding:10px;border:none;border-radius:5px;background:#2a3336;color:#eee;cursor:pointer;font-family:var(--font-body)">Cancel</button>
+      <button onclick="confirmVoid()" style="flex:1;padding:10px;border:none;border-radius:5px;background:var(--due,#c4452b);color:#fff;cursor:pointer;font-weight:600;font-family:var(--font-body)">Void</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="/js/nav.js"></script>
@@ -228,6 +252,8 @@
   let currentOrderId = null;
   let currentOrder = null;
   let selectedMethod = "CASH";
+  let voidTarget = null; // { type: 'ITEM'|'ORDER', id, name, qty, amount }
+  let mergeMap = {}; // primaryTableId -> [childTableNumber, ...]
 
   const socket = io(API_BASE);
   const statusText = document.getElementById("status-text");
@@ -235,6 +261,7 @@
   socket.on("connect", () => {
     statusText.textContent = "live";
     socket.emit("join-kitchen"); // reuse same room — cashier also wants live order updates
+    loadTableMergeInfo();
     loadOrderList();
   });
   socket.on("disconnect", () => statusText.textContent = "disconnected");
@@ -256,11 +283,32 @@
     return data;
   }
 
+  async function loadTableMergeInfo() {
+    try {
+      const tables = await api("/tables/with-merge-info");
+      mergeMap = {};
+      tables.forEach(t => {
+        if (t.mergedWithTableId) {
+          if (!mergeMap[t.mergedWithTableId]) mergeMap[t.mergedWithTableId] = [];
+          mergeMap[t.mergedWithTableId].push(t.tableNumber);
+        }
+      });
+    } catch (err) {
+      console.error("Failed to load table merge info", err);
+    }
+  }
+
+  function getTableLabel(order) {
+    if (!order.table) return order.orderType.replace("_", " ");
+    const children = mergeMap[order.table.id] || [];
+    return children.length > 0
+      ? `Table ${order.table.tableNumber} + ${children.join(" + ")}`
+      : `Table ${order.table.tableNumber}`;
+  }
+
   async function loadOrderList() {
     try {
       const orders = await api("/kitchen/orders");
-      // Also fetch all orders regardless of paid status would need another endpoint;
-      // for now show active (unpaid/in-progress) orders from kitchen feed
       renderOrderList(orders);
     } catch (err) {
       document.getElementById("order-list-items").innerHTML = `<div class="empty-list">Couldn't load orders.</div>`;
@@ -274,7 +322,7 @@
       return;
     }
     container.innerHTML = orders.map(o => {
-      const label = o.table ? `Table ${o.table.tableNumber}` : o.orderType.replace("_", " ");
+      const label = getTableLabel(o);
       const itemCount = o.orderItems.length;
       return `
         <div class="order-card ${o.id === currentOrderId ? "active" : ""}" data-id="${o.id}">
@@ -310,10 +358,16 @@
   function renderReceipt() {
     const o = currentOrder;
     const area = document.getElementById("receipt-area");
-    const tableLabel = o.table ? `Table ${o.table.tableNumber}` : o.orderType.replace("_", " ");
+    const tableLabel = getTableLabel(o);
+
+    const activeItems = o.orderItems.filter(i => i.status !== 'CANCELLED');
 
     const itemsHtml = o.orderItems.map(it => `
-      <div class="line"><span class="name">${it.quantity}× ${escapeHtml(it.menuItem.name)}</span><span>₱${Number(it.subtotal).toFixed(2)}</span></div>
+      <div class="line">
+        <span class="name">${it.quantity}× ${escapeHtml(it.menuItem.name)}${it.status === 'CANCELLED' ? ' <span style="color:var(--due);font-size:11px">(VOIDED)</span>' : ''}</span>
+        <span>₱${Number(it.subtotal).toFixed(2)}</span>
+        ${it.status !== 'CANCELLED' && o.paymentStatus !== 'PAID' ? `<button class="void-item-btn" onclick='openVoidModal("ITEM", "${it.id}", ${JSON.stringify(escapeHtml(it.menuItem.name))}, ${it.quantity}, ${Number(it.subtotal)})'>Void</button>` : ''}
+      </div>
       ${it.notes ? `<div class="item-note">"${escapeHtml(it.notes)}"</div>` : ""}
     `).join("");
 
@@ -347,6 +401,9 @@
         ${paymentLog}
 
         <div class="panel-block">
+          ${o.paymentStatus !== 'PAID' ? `
+            <button class="void-order-btn" onclick='openVoidModal("ORDER", "${o.id}", "Full Order", ${activeItems.length}, ${activeItems.reduce((s,i) => s + Number(i.subtotal), 0)})'>🚫 Void Entire Order</button>
+          ` : ''}
           ${o.subtotal === null ? `
             <button class="primary" id="calc-btn">Calculate Bill</button>
           ` : o.paymentStatus !== "PAID" ? `
@@ -397,9 +454,7 @@
     currentOrder = null;
     document.getElementById("receipt-area").innerHTML = `<div class="no-selection">Select an order from the left to view its bill.</div>`;
     loadOrderList();
-    // Open receipt in new tab
     const url = `/receipt.html?orderId=${orderId}`;
-    console.log(url);
     window.open(url, "_blank");
     });
 
@@ -476,19 +531,68 @@
   }
 
   async function applySpecial(type) {
-  const seniorCount = parseInt(document.getElementById("senior-count")?.value) || 0
-  const totalPersons = parseInt(document.getElementById("total-persons")?.value) || 0
-  if (!seniorCount) { showToast("Enter number of seniors/PWDs."); return; }
-  if (!totalPersons) { showToast("Enter total number of persons."); return; }
-  try {
-    const result = await api(`/orders/${currentOrderId}/special-discount`, {
-      method: "POST",
-      body: JSON.stringify({ type, seniorCount, totalPersons })
-    });
-    await refreshReceipt();
-    showToast(`${type} discount applied — ₱${result.discountAmount.toFixed(2)} off`);
-  } catch (err) { showToast(err.message); }
-}
+    const seniorCount = parseInt(document.getElementById("senior-count")?.value) || 0
+    const totalPersons = parseInt(document.getElementById("total-persons")?.value) || 0
+    if (!seniorCount) { showToast("Enter number of seniors/PWDs."); return; }
+    if (!totalPersons) { showToast("Enter total number of persons."); return; }
+    try {
+      const result = await api(`/orders/${currentOrderId}/special-discount`, {
+        method: "POST",
+        body: JSON.stringify({ type, seniorCount, totalPersons })
+      });
+      await refreshReceipt();
+      showToast(`${type} discount applied — ₱${result.discountAmount.toFixed(2)} off`);
+    } catch (err) { showToast(err.message); }
+  }
+
+  // ---- Void ----
+  function openVoidModal(type, id, name, qty, amount) {
+    voidTarget = { type, id, name, qty, amount };
+    document.getElementById("void-modal-title").textContent = type === "ORDER" ? "Void Entire Order" : "Void Item";
+    document.getElementById("void-item-summary").textContent = type === "ORDER"
+      ? `This will void all ${qty} active item(s), totaling ₱${amount.toFixed(2)}, and free up the table.`
+      : `${qty}× ${name} — ₱${amount.toFixed(2)}`;
+    document.getElementById("void-reason").value = "";
+    document.getElementById("void-pin").value = "";
+    document.getElementById("void-modal").style.display = "flex";
+  }
+
+  function closeVoidModal() {
+    document.getElementById("void-modal").style.display = "none";
+    voidTarget = null;
+  }
+
+  async function confirmVoid() {
+    const reason = document.getElementById("void-reason").value.trim();
+    const approverPin = document.getElementById("void-pin").value.trim();
+    if (!reason) { showToast("Please enter a reason."); return; }
+    if (!approverPin) { showToast("Manager/Admin PIN required."); return; }
+
+    try {
+      if (voidTarget.type === "ITEM") {
+        await api(`/order-items/${voidTarget.id}/void`, {
+          method: "POST",
+          body: JSON.stringify({ reason, approverPin })
+        });
+        showToast("Item voided.");
+        closeVoidModal();
+        await refreshReceipt();
+      } else {
+        await api(`/orders/${voidTarget.id}/void`, {
+          method: "POST",
+          body: JSON.stringify({ reason, approverPin })
+        });
+        showToast("Order voided.");
+        closeVoidModal();
+        currentOrderId = null;
+        currentOrder = null;
+        document.getElementById("receipt-area").innerHTML = `<div class="no-selection">Select an order from the left to view its bill.</div>`;
+        await loadOrderList();
+      }
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
 
 </script>
 

@@ -411,6 +411,13 @@ export async function mergeTable(tableId: string, mergeIntoTableId: string) {
   if (!target) throw new Error("Target table not found.")
   if (target.mergedWithTableId) throw new Error("Target table is itself merged into another table. Merge into the primary table instead.")
 
+  // Cascade fix: if the table being merged already has OTHER tables merged into it,
+  // reassign those children directly to the new primary too — prevents orphaned chains.
+  await prisma.table.updateMany({
+    where: { mergedWithTableId: tableId },
+    data: { mergedWithTableId: mergeIntoTableId },
+  })
+
   return prisma.table.update({
     where: { id: tableId },
     data: {

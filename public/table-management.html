@@ -266,7 +266,7 @@
     mergeSourceId = tableId;
     document.getElementById("merge-modal-title").textContent = `Merge ${tableNumber} Into…`;
 
-    const candidates = tables.filter(t => t.id !== tableId && !t.mergedWithTableId && !tables.some(x => x.mergedWithTableId === t.id && x.id !== tableId));
+    const candidates = tables.filter(t => t.id !== tableId && !t.mergedWithTableId);
     const sel = document.getElementById("merge-target");
     if (!candidates.length) {
       sel.innerHTML = `<option value="">No available tables to merge with</option>`;
