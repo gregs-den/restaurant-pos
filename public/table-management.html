@@ -210,7 +210,7 @@
       <div class="stat-chip"><div class="num">${tables.length}</div><div class="lbl">Total Tables</div></div>
       ${statuses.map(s => `
         <div class="stat-chip">
-          <div class="num" style="color:var(--accent)">${tables.filter(t => t.status === s).length}</div>
+          <div class="num" style="color:var(--accent)">${tables.filter(t => (t.effectiveStatus || t.status) === s).length}</div>
           <div class="lbl">${s}</div>
         </div>
       `).join("")}
@@ -227,21 +227,24 @@
       const isMergedChild = !!t.mergedWithTableId;
       const parentTable = isMergedChild ? tables.find(x => x.id === t.mergedWithTableId) : null;
       const childTables = tables.filter(x => x.mergedWithTableId === t.id);
+      const status = t.effectiveStatus || t.status;
+      const hasReservation = status === "RESERVED" && t.activeReservation;
 
       return `
-      <div class="table-card ${t.status} ${isMergedChild ? 'is-merged-child' : ''}">
+      <div class="table-card ${status} ${isMergedChild ? 'is-merged-child' : ''}" ${hasReservation ? `onclick="showReservationInfo('${t.id}')" style="cursor:pointer"` : ''}>
         <div class="table-number">${escapeHtml(t.tableNumber)}</div>
         <div class="table-meta">👥 Seats ${t.capacity}${t.floorSection ? ` · ${escapeHtml(t.floorSection)}` : ""}</div>
         ${isMergedChild ? `<div class="merge-badge">🔗 Merged into ${escapeHtml(parentTable ? parentTable.tableNumber : '?')}</div>` : ""}
         ${childTables.length > 0 ? `<div class="merge-badge">🔗 Combined with ${childTables.map(c => escapeHtml(c.tableNumber)).join(", ")}</div>` : ""}
-        <span class="table-status-badge badge-${t.status}">${t.status}</span>
-        <select class="status-select-sm" onchange="quickStatusChange('${t.id}', this.value)" ${isMergedChild ? 'disabled title="Managed via primary table"' : ''}>
+        <span class="table-status-badge badge-${status}">${status}</span>
+        ${hasReservation ? `<div style="font-size:11px;color:#9b9ef7;margin-bottom:8px">👤 ${escapeHtml(t.activeReservation.guestName)} · tap for info</div>` : ""}
+        <select class="status-select-sm" onchange="quickStatusChange('${t.id}', this.value)" ${isMergedChild ? 'disabled title="Managed via primary table"' : ''} onclick="event.stopPropagation()">
           <option value="AVAILABLE" ${t.status === "AVAILABLE" ? "selected" : ""}>Available</option>
           <option value="OCCUPIED" ${t.status === "OCCUPIED" ? "selected" : ""}>Occupied</option>
           <option value="RESERVED" ${t.status === "RESERVED" ? "selected" : ""}>Reserved</option>
           <option value="BILLING" ${t.status === "BILLING" ? "selected" : ""}>Billing</option>
         </select>
-        <div class="table-actions" style="margin-top:8px">
+        <div class="table-actions" style="margin-top:8px" onclick="event.stopPropagation()">
           <button class="btn btn-ghost" onclick="editTable('${t.id}')">✏️ Edit</button>
           ${isMergedChild
             ? `<button class="btn btn-danger" onclick="unmergeTable('${t.id}')">🔓 Unmerge</button>`
@@ -251,6 +254,14 @@
       </div>
     `;
     }).join("");
+  }
+
+  function showReservationInfo(tableId) {
+    const t = tables.find(x => x.id === tableId);
+    if (!t || !t.activeReservation) return;
+    const r = t.activeReservation;
+    const time = new Date(r.reservedAt).toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit", hour12: true });
+    alert(`Reserved for: ${r.guestName}\nParty size: ${r.partySize}\nTime: ${time}${r.guestPhone ? `\nPhone: ${r.guestPhone}` : ""}${r.notes ? `\nNotes: ${r.notes}` : ""}`);
   }
 
   async function quickStatusChange(id, status) {
@@ -266,7 +277,7 @@
     mergeSourceId = tableId;
     document.getElementById("merge-modal-title").textContent = `Merge ${tableNumber} Into…`;
 
-    const candidates = tables.filter(t => t.id !== tableId && !t.mergedWithTableId);
+    const candidates = tables.filter(t => t.id !== tableId && !t.mergedWithTableId && !tables.some(x => x.mergedWithTableId === t.id && x.id !== tableId));
     const sel = document.getElementById("merge-target");
     if (!candidates.length) {
       sel.innerHTML = `<option value="">No available tables to merge with</option>`;
@@ -329,8 +340,9 @@
 
     try {
       if (editingId) {
-        await api(`/tables/${editingId}`, { method: "PUT", body: JSON.stringify({ tableNumber, capacity, floorSection: floorSection || undefined }) });
-        showToast("Table updated.");
+        showToast("Editing table number isn't supported yet — only status can be changed for existing tables.");
+        closeTableModal();
+        return;
       } else {
         await api("/tables", { method: "POST", body: JSON.stringify({ tableNumber, capacity, floorSection: floorSection || undefined }) });
         showToast("Table created.");
@@ -339,7 +351,7 @@
       await loadTables();
     } catch (err) { showToast(err.message); }
   }
-  
+
   function showToast(msg) {
     const toast = document.getElementById("toast");
     toast.textContent = msg;

@@ -355,13 +355,27 @@
       const label = children.length > 0
         ? `${t.tableNumber} + ${children.map(c => c.tableNumber).join("+")}`
         : t.tableNumber;
+      const status = t.effectiveStatus || t.status;
+      const hasReservation = status === "RESERVED" && t.activeReservation;
       return `
-      <div class="table-btn ${t.status} ${t.id === selectedTableId ? 'selected' : ''}" onclick="selectTable('${t.id}', '${escapeHtml(label)}')">
+      <div class="table-btn ${status} ${t.id === selectedTableId ? 'selected' : ''}"
+        onclick="${hasReservation ? `showReservationInfo('${t.id}')` : `selectTable('${t.id}', '${escapeHtml(label)}')`}">
         ${escapeHtml(label)}
-        <div class="t-status">${t.status.toLowerCase()}${children.length > 0 ? ' · combined' : ''}</div>
+        <div class="t-status">${status.toLowerCase()}${children.length > 0 ? ' · combined' : ''}${hasReservation ? ' · tap for info' : ''}</div>
       </div>
     `;
     }).join("");
+  }
+
+  function showReservationInfo(tableId) {
+    const t = tables.find(x => x.id === tableId);
+    if (!t || !t.activeReservation) return;
+    const r = t.activeReservation;
+    const time = new Date(r.reservedAt).toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit", hour12: true });
+    const msg = `Reserved for: ${r.guestName}\nParty size: ${r.partySize}\nTime: ${time}${r.guestPhone ? `\nPhone: ${r.guestPhone}` : ""}${r.notes ? `\nNotes: ${r.notes}` : ""}\n\nSeat this guest now?`;
+    if (confirm(msg)) {
+      selectTable(t.id, t.tableNumber);
+    }
   }
 
   function selectTable(id, number) {

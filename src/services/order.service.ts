@@ -2,7 +2,8 @@ import prisma from "./prisma"
 
 // ===== Tables =====
 export async function getTables() {
-  return prisma.table.findMany({ orderBy: { tableNumber: "asc" } })
+  const tables = await prisma.table.findMany({ orderBy: { tableNumber: "asc" } })
+  return attachReservationInfo(tables)
 }
 
 export async function updateTableStatus(id: string, status: "AVAILABLE" | "OCCUPIED" | "RESERVED" | "BILLING") {
@@ -445,7 +446,7 @@ export async function getTablesWithMergeInfo() {
     include: { mergedTables: true, mergedWithTable: true },
     orderBy: { tableNumber: "asc" },
   })
-  return tables
+  return attachReservationInfo(tables)
 }
 
 export async function verifyManagerPin(pin: string) {
@@ -598,4 +599,45 @@ export async function resetOrCounter() {
 export async function getOrCounterStatus() {
   const counter = await prisma.orNumberCounter.findUnique({ where: { id: 1 } })
   return { lastNumber: counter?.lastNumber || 0 }
+}
+
+async function attachReservationInfo(tables: any[]) {
+  const now = new Date()
+  const windowStart = new Date(now.getTime() - 60 * 60 * 1000)  // up to 60 min ago
+  const windowEnd = new Date(now.getTime() + 10 * 60 * 1000)    // up to 10 min from now
+
+  const activeReservations = await prisma.reservation.findMany({
+    where: {
+      status: { in: ["PENDING", "CONFIRMED"] },
+      reservedAt: { gte: windowStart, lte: windowEnd },
+      tableId: { not: null },
+    },
+    orderBy: { reservedAt: "asc" },
+  })
+
+  const reservationByTable: Record<string, any> = {}
+  activeReservations.forEach(r => {
+    if (r.tableId && !reservationByTable[r.tableId]) {
+      reservationByTable[r.tableId] = r
+    }
+  })
+
+  return tables.map(t => {
+    const reservation = reservationByTable[t.id]
+    const isFreeToShowReserved = t.status === "AVAILABLE" // don't override Occupied/Billing
+    const effectiveStatus = (reservation && isFreeToShowReserved) ? "RESERVED" : t.status
+
+    return {
+      ...t,
+      effectiveStatus,
+      activeReservation: (reservation && isFreeToShowReserved) ? {
+        id: reservation.id,
+        guestName: reservation.guestName,
+        guestPhone: reservation.guestPhone,
+        partySize: reservation.partySize,
+        reservedAt: reservation.reservedAt,
+        notes: reservation.notes,
+      } : null,
+    }
+  })
 }

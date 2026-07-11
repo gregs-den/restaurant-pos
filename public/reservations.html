@@ -125,6 +125,7 @@
   .chip-AVAILABLE { background: #1f3a2a; color: #6fcf97; }
   .chip-OCCUPIED { background: #3a2a1f; color: #f2994a; }
   .chip-RESERVED { background: #2a2a3a; color: #9b9ef7; }
+  .chip-BILLING { background: #3a1f1f; color: #eb5757; }
 
   /* ---- Buttons ---- */
   .btn {
@@ -374,6 +375,24 @@
     document.getElementById("stat-confirmed").textContent = reservations.filter(r => r.status === "CONFIRMED").length;
     document.getElementById("stat-seated").textContent = reservations.filter(r => r.status === "SEATED").length;
     document.getElementById("stat-guests").textContent = active.reduce((s, r) => s + r.partySize, 0);
+  }
+
+  async function loadReservations() {
+    try {
+      [reservations, tables] = await Promise.all([
+        api(`/reservations?date=${formatDate(currentDate)}`),
+        api("/tables"),
+      ]);
+      reservations.sort(
+    (a, b) => new Date(a.reservedAt) - new Date(b.reservedAt)
+      );
+      renderStats();
+      renderReservations();
+      renderSidebar();
+      populateTableSelect();
+    } catch (err) {
+      document.getElementById("res-list").innerHTML = `<div class="empty-state">Failed to load reservations.</div>`;
+    }
   }
 
   function renderReservations() {

@@ -110,6 +110,22 @@
 
   .refresh-note { text-align: right; font-size: 11px; color: var(--muted); margin-bottom: 16px; }
 
+  /* ---- Low stock banner ---- */
+  .low-stock-banner {
+    display: none;
+    background: #3a2a1f; border: 1px solid var(--warn, #e0a72e);
+    border-radius: 8px; padding: 14px 18px; margin-bottom: 20px;
+    align-items: center; gap: 12px;
+  }
+  .low-stock-banner.show { display: flex; }
+  .low-stock-banner .icon { font-size: 20px; }
+  .low-stock-banner .text { flex: 1; font-size: 13px; color: #f2c978; }
+  .low-stock-banner .text strong { color: #fff; }
+  .low-stock-banner a {
+    background: var(--warn, #e0a72e); color: #1a1200; text-decoration: none;
+    padding: 6px 14px; border-radius: 5px; font-size: 12px; font-weight: 600; white-space: nowrap;
+  }
+
   /* ---- BIR Settings card ---- */
   .bir-card { border-color: var(--danger, #c4452b); }
   .bir-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
@@ -172,6 +188,12 @@
 </header>
 
 <div class="main">
+  <div class="low-stock-banner" id="low-stock-banner">
+    <div class="icon">⚠️</div>
+    <div class="text"><strong id="low-stock-count">0</strong> ingredient(s) running low: <span id="low-stock-names"></span></div>
+    <a href="/inventory.html">View Inventory →</a>
+  </div>
+
   <div class="refresh-note" id="last-refresh">Loading…</div>
 
   <!-- KPIs -->
@@ -333,21 +355,36 @@
     loadTables();
   }
 
+  let allTables = [];
+
   async function loadTables() {
     try {
       const res = await fetch(`${API_BASE}/tables`, {
         headers: { Authorization: `Bearer ${TOKEN}` }
       });
       const tables = await res.json();
-      document.getElementById("tables-grid").innerHTML = tables.map(t => `
-        <div class="table-chip ${t.status}">
+      allTables = tables;
+      document.getElementById("tables-grid").innerHTML = tables.map(t => {
+        const status = t.effectiveStatus || t.status;
+        const hasReservation = status === "RESERVED" && t.activeReservation;
+        return `
+        <div class="table-chip ${status}" ${hasReservation ? `onclick="showReservationInfo('${t.id}')" style="cursor:pointer"` : ''}>
           ${escapeHtml(t.tableNumber)}
-          <div class="table-status">${t.status.toLowerCase()}</div>
+          <div class="table-status">${status.toLowerCase()}</div>
         </div>
-      `).join("");
+      `;
+      }).join("");
     } catch (err) {
       console.error("Failed to load tables", err);
     }
+  }
+
+  function showReservationInfo(tableId) {
+    const t = allTables.find(x => x.id === tableId);
+    if (!t || !t.activeReservation) return;
+    const r = t.activeReservation;
+    const time = new Date(r.reservedAt).toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit", hour12: true });
+    alert(`Reserved for: ${r.guestName}\nParty size: ${r.partySize}\nTime: ${time}${r.guestPhone ? `\nPhone: ${r.guestPhone}` : ""}${r.notes ? `\nNotes: ${r.notes}` : ""}`);
   }
 
   function escapeHtml(str) {
@@ -413,7 +450,29 @@
     if (e.target.id === "reset-modal") closeResetModal();
   });
 
+  async function loadLowStock() {
+    try {
+      const res = await fetch(`${API_BASE}/stock/low-stock`, {
+        headers: { Authorization: `Bearer ${TOKEN}` }
+      });
+      if (!res.ok) return;
+      const lowStock = await res.json();
+      const banner = document.getElementById("low-stock-banner");
+      if (lowStock.length > 0) {
+        banner.classList.add("show");
+        document.getElementById("low-stock-count").textContent = lowStock.length;
+        document.getElementById("low-stock-names").textContent = lowStock.map(i => i.name).join(", ");
+      } else {
+        banner.classList.remove("show");
+      }
+    } catch (err) {
+      console.error("Failed to load low stock", err);
+    }
+  }
+
   loadStats();
+  loadLowStock();
+  setInterval(loadLowStock, 60000);
   loadOrCounter();
 </script>
 </body>

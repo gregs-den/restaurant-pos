@@ -38,14 +38,18 @@ function buildNavHTML() {
 
   const bodyHtml = sections.map(group => `
     <div class="nav-section-label">${group.name}</div>
-    ${group.links.map(link => `
-      <a href="${link.href}" class="${currentPage === link.href.replace('/', '') ? 'current' : ''}">${link.label}</a>
-    `).join("")}
+    ${group.links.map(link => {
+      const isInventory = link.href === "/inventory.html";
+      const badge = isInventory ? `<span class="nav-link-badge" id="nav-link-badge-inventory" style="display:none"></span>` : "";
+      return `
+      <a href="${link.href}" class="${currentPage === link.href.replace('/', '') ? 'current' : ''}">${link.label}${badge}</a>
+    `;
+    }).join("")}
   `).join("") || `<div class="nav-section-label">No screens available</div>`;
 
   return `
     <div class="nav-menu-wrap">
-      <button class="nav-menu-btn" id="navMenuBtn">☰ Menu</button>
+      <button class="nav-menu-btn" id="navMenuBtn">☰ Menu<span class="nav-btn-badge" id="nav-btn-badge" style="display:none"></span></button>
       <div class="nav-dropdown" id="nav-dropdown">
         ${bodyHtml}
       </div>
@@ -53,10 +57,42 @@ function buildNavHTML() {
   `;
 }
 
+async function checkLowStockBadge() {
+  const token = localStorage.getItem("pos_token");
+  const role = localStorage.getItem("pos_role");
+  if (!token) return;
+  // Only roles that can see Inventory need to check (avoid unnecessary calls for Waiter, etc.)
+  if (!["ADMIN", "MANAGER"].includes(role)) return;
+
+  try {
+    const res = await fetch(`${window.location.origin}/stock/low-stock`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) return;
+    const lowStock = await res.json();
+    const count = lowStock.length;
+
+    const btnBadge = document.getElementById("nav-btn-badge");
+    const linkBadge = document.getElementById("nav-link-badge-inventory");
+
+    if (count > 0) {
+      if (btnBadge) { btnBadge.textContent = count; btnBadge.style.display = "inline-flex"; }
+      if (linkBadge) { linkBadge.textContent = count; linkBadge.style.display = "inline-flex"; }
+    } else {
+      if (btnBadge) btnBadge.style.display = "none";
+      if (linkBadge) linkBadge.style.display = "none";
+    }
+  } catch (err) {
+    // fail silently — badge just won't show
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const container = document.getElementById("nav-container");
   if (!container) return;
   container.innerHTML = buildNavHTML();
+  checkLowStockBadge();
+  setInterval(checkLowStockBadge, 60000); // refresh every 60s
 });
 
 document.addEventListener("click", (e) => {
