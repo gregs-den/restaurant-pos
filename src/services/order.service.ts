@@ -209,14 +209,21 @@ export async function addPayment(orderId: string, data: {
   if (totalPaid >= totalDue) paymentStatus = "PAID"
   if (totalPaid <= 0) paymentStatus = "UNPAID"
 
+  // Assign the next sequential OR number, only once, when the order first becomes fully paid
+  let orNumber = order.orNumber
+  if (paymentStatus === "PAID" && !orNumber) {
+    orNumber = await getNextOrNumber()
+  }
+
   await prisma.order.update({
     where: { id: orderId },
     data: {
       paymentStatus,
       status: paymentStatus === "PAID" ? "SERVED" : order.status,
+      orNumber: orNumber || undefined,
     },
   })
-
+  
   // Free up the table if fully paid
   if (paymentStatus === "PAID" && order.tableId) {
     await prisma.table.update({
@@ -565,4 +572,30 @@ export async function getVoidLogs(filters?: { from?: string; to?: string }) {
 
 export async function updateTable(id: string, data: { tableNumber?: string; capacity?: number; floorSection?: string }) {
   return prisma.table.update({ where: { id }, data })
+}
+
+export async function getNextOrNumber(): Promise<number> {
+  // Atomic increment using a raw upsert-style transaction to avoid race conditions
+  const result = await prisma.$transaction(async (tx) => {
+    const counter = await tx.orNumberCounter.upsert({
+      where: { id: 1 },
+      update: { lastNumber: { increment: 1 } },
+      create: { id: 1, lastNumber: 1 },
+    })
+    return counter.lastNumber
+  })
+  return result
+}
+
+export async function resetOrCounter() {
+  return prisma.orNumberCounter.upsert({
+    where: { id: 1 },
+    update: { lastNumber: 0 },
+    create: { id: 1, lastNumber: 0 },
+  })
+}
+
+export async function getOrCounterStatus() {
+  const counter = await prisma.orNumberCounter.findUnique({ where: { id: 1 } })
+  return { lastNumber: counter?.lastNumber || 0 }
 }

@@ -13,6 +13,7 @@ import promoRoutes from "./routes/promo.routes"
 import inventoryRoutes from "./routes/inventory.routes"
 import reservationRoutes from "./routes/reservation.routes"
 import shiftRoutes from "./routes/shift.routes"
+import backupRoutes from "./routes/backup.routes"
 import path from "path"
 
 dotenv.config()
@@ -53,6 +54,7 @@ app.use("/", promoRoutes)
 app.use("/", inventoryRoutes)
 app.use("/", reservationRoutes)
 app.use("/", shiftRoutes)
+app.use("/", backupRoutes)
 
 // Socket.io connection
 io.on("connection", (socket) => {

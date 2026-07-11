@@ -41,4 +41,7 @@ router.post("/orders/:id/discount", authenticate, requireRole("ADMIN", "MANAGER"
 router.post("/orders/:id/payments", authenticate, requireRole("ADMIN", "MANAGER", "CASHIER"), orderController.addPayment)
 router.get("/orders/:id/receipt", authenticate, orderController.getReceipt)
 
+router.get("/or-counter", authenticate, requireRole("ADMIN"), orderController.getOrCounterStatus)
+router.post("/or-counter/reset", authenticate, requireRole("ADMIN"), orderController.resetOrCounter)
+
 export default router 

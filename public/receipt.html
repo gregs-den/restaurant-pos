@@ -129,7 +129,6 @@
     box-shadow: 0 4px 20px rgba(0,0,0,0.4);
   }
   .receipt-a4 .a4-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-  .receipt-a4 .a4-biz { }
   .receipt-a4 .a4-biz h2 { margin: 0 0 4px; font-size: 20px; letter-spacing: 1px; }
   .receipt-a4 .a4-biz p { margin: 0; font-size: 12px; }
   .receipt-a4 .a4-receipt-info { text-align: right; font-size: 12px; }
@@ -137,7 +136,6 @@
   .receipt-a4 .a4-divider { border-top: 2px solid #000; margin: 16px 0 8px; }
   .receipt-a4 .a4-divider-thin { border-top: 1px dashed #999; margin: 8px 0; }
   .receipt-a4 .a4-order-info { display: flex; gap: 32px; font-size: 12px; margin-bottom: 16px; }
-  .receipt-a4 .a4-order-info div { }
   .receipt-a4 .a4-order-info .label { color: #666; font-size: 11px; text-transform: uppercase; }
   .receipt-a4 table { width: 100%; border-collapse: collapse; font-size: 13px; }
   .receipt-a4 table th { text-align: left; border-bottom: 1px solid #000; padding: 6px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -203,7 +201,7 @@
 <div class="receipt-wrapper" id="receipt-wrapper"></div>
 
 <script>
-  const API_BASE = window.location.origin;
+  const API_BASE = "http://localhost:3000";
   const TOKEN = localStorage.getItem("pos_token");
   if (!TOKEN) window.location.href = "/";
 
@@ -256,7 +254,7 @@
   function render80mm(o) {
     const tableLabel = o.table ? `Table ${o.table.tableNumber}` : o.orderType.replace("_", " ");
     const date = new Date(o.createdAt).toLocaleString("en-PH", { dateStyle: "short", timeStyle: "short" });
-    const receiptNo = o.id.slice(-8).toUpperCase();
+    const receiptNo = o.orNumber ? String(o.orNumber).padStart(8, "0") : "PENDING";
     const totalPaid = o.payments.reduce((s, p) => s + Number(p.amount), 0);
     const change = Math.max(0, totalPaid - Number(o.totalAmount || 0));
 
@@ -309,7 +307,7 @@
   function renderA4(o) {
     const tableLabel = o.table ? `Table ${o.table.tableNumber}` : o.orderType.replace("_", " ");
     const date = new Date(o.createdAt).toLocaleString("en-PH", { dateStyle: "long", timeStyle: "short" });
-    const receiptNo = o.id.slice(-8).toUpperCase();
+    const receiptNo = o.orNumber ? String(o.orNumber).padStart(8, "0") : "PENDING";
     const totalPaid = o.payments.reduce((s, p) => s + Number(p.amount), 0);
     const change = Math.max(0, totalPaid - Number(o.totalAmount || 0));
 

@@ -14,6 +14,7 @@ const NAV_LINKS = [
   { section: "Management", href: "/user-management.html", label: "👥 User Management", roles: ["ADMIN"] },
   { section: "Management", href: "/inventory.html", label: "📦 Inventory", roles: ["ADMIN", "MANAGER"] },
   { section: "Management", href: "/promo-management.html", label: "🎟️ Promo Management", roles: ["ADMIN", "MANAGER"] },
+  { section: "Management", href: "/backup.html", label: "💾 Backup & Export", roles: ["ADMIN"] },
 
   { section: "Reports", href: "/order-history.html", label: "📜 Order History", roles: ["ADMIN", "MANAGER", "CASHIER"] },
   { section: "Reports", href: "/reports.html", label: "📈 Sales Reports", roles: ["ADMIN", "MANAGER"] },

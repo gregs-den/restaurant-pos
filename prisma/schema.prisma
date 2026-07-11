@@ -193,6 +193,7 @@ model Order {
   orderType     OrderType   @default(DINE_IN) @map("order_type")
   status        OrderStatus @default(PENDING)
   notes         String?
+  orNumber Int? @unique @map("or_number")
 
   // Billing fields
   subtotal      Decimal?    @db.Decimal(10, 2)
@@ -443,4 +444,11 @@ model Shift {
   closedAt        DateTime?   @map("closed_at")
 
   @@map("shifts")
+}
+
+model OrNumberCounter {
+  id         Int @id @default(1)
+  lastNumber Int @default(0) @map("last_number")
+
+  @@map("or_number_counter")
 }

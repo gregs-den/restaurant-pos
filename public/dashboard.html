@@ -109,6 +109,44 @@
   .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
 
   .refresh-note { text-align: right; font-size: 11px; color: var(--muted); margin-bottom: 16px; }
+
+  /* ---- BIR Settings card ---- */
+  .bir-card { border-color: var(--danger, #c4452b); }
+  .bir-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .bir-row:last-child { border-bottom: none; }
+  .bir-label { font-size: 13px; color: var(--muted); }
+  .bir-value { font-family: var(--font-display); font-size: 16px; font-weight: bold; color: var(--accent); }
+  .btn-danger-outline {
+    padding: 8px 16px; border-radius: 5px; border: 1px solid var(--danger, #c4452b);
+    background: transparent; color: var(--danger, #c4452b); font-size: 12px; cursor: pointer;
+    font-family: var(--font-body); font-weight: 600;
+  }
+  .btn-danger-outline:hover { background: var(--danger, #c4452b); color: #fff; }
+
+  .modal-bg {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+    z-index: 300; align-items: center; justify-content: center; padding: 16px;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--panel); border: 2px solid var(--danger, #c4452b); border-radius: 10px;
+    padding: 24px; width: 100%; max-width: 420px;
+  }
+  .modal h3 { margin: 0 0 12px; font-size: 16px; color: var(--danger, #c4452b); }
+  .modal p { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 14px; }
+  .modal input {
+    width: 100%; padding: 10px; border-radius: 5px; border: 1px solid var(--border);
+    background: #1a2022; color: #eee; font-size: 14px; box-sizing: border-box; margin-bottom: 14px;
+  }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .btn { padding: 8px 16px; border-radius: 5px; border: none; font-size: 13px; cursor: pointer; font-family: var(--font-body); font-weight: 600; }
+  .btn-ghost { background: #2a3336; color: #eee; }
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--accent-dark, #1f6e47); color: #fff; padding: 10px 20px; border-radius: 6px;
+    font-size: 13px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 400;
+  }
+  .toast.show { opacity: 1; }
 </style>
 </head>
 <body>
@@ -159,7 +197,7 @@
   </div>
 
   <!-- Table status -->
-  <div class="card">
+  <div class="card" style="margin-bottom: 24px">
     <h2>Table Status</h2>
     <div class="tables-grid" id="tables-grid"></div>
     <div class="legend">
@@ -169,7 +207,44 @@
       <div class="legend-item"><div class="legend-dot" style="background:#eb5757"></div> Billing</div>
     </div>
   </div>
+
+  <!-- BIR Settings (Admin only) -->
+  <div class="card bir-card" id="bir-card" style="display:none">
+    <h2>🧾 BIR Official Receipt Settings</h2>
+    <div class="bir-row">
+      <span class="bir-label">Last Issued OR Number</span>
+      <span class="bir-value" id="bir-last-number">…</span>
+    </div>
+    <div class="bir-row">
+      <span class="bir-label">Next OR Number Will Be</span>
+      <span class="bir-value" id="bir-next-number">…</span>
+    </div>
+    <div class="bir-row">
+      <span class="bir-label">Reset counter to zero</span>
+      <button class="btn-danger-outline" onclick="openResetModal()">⚠️ Reset OR Counter</button>
+    </div>
+  </div>
 </div>
+
+<!-- Reset Confirmation Modal -->
+<div class="modal-bg" id="reset-modal">
+  <div class="modal">
+    <h3>⚠️ Reset OR Counter</h3>
+    <p>
+      This resets your Official Receipt numbering back to <strong>0</strong>. The next paid order will be
+      <strong>OR-00000001</strong>. Only do this before your official go-live — resetting after real transactions
+      have started violates BIR sequential numbering rules and could cause compliance issues.
+    </p>
+    <p>Type <strong>RESET</strong> below to confirm:</p>
+    <input type="text" id="reset-confirm-input" placeholder="Type RESET" />
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeResetModal()">Cancel</button>
+      <button class="btn-danger-outline" onclick="confirmResetCounter()">Confirm Reset</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
 
 <script src="/js/nav.js"></script>
 
@@ -185,6 +260,7 @@
   const API_BASE = window.location.origin;
   const TOKEN = localStorage.getItem("pos_token");
   if (!TOKEN) window.location.href = "/";
+  const ROLE = localStorage.getItem("pos_role");
 
   // Clock
   function updateClock() {
@@ -280,7 +356,65 @@
     return div.innerHTML;
   }
 
+  // ---- BIR OR Counter (Admin only) ----
+  async function loadOrCounter() {
+    if (ROLE !== "ADMIN") return;
+    document.getElementById("bir-card").style.display = "block";
+    try {
+      const res = await fetch(`${API_BASE}/or-counter`, {
+        headers: { Authorization: `Bearer ${TOKEN}` }
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      document.getElementById("bir-last-number").textContent = String(data.lastNumber).padStart(8, "0");
+      document.getElementById("bir-next-number").textContent = String(data.lastNumber + 1).padStart(8, "0");
+    } catch (err) {
+      console.error("Failed to load OR counter", err);
+    }
+  }
+
+  function openResetModal() {
+    document.getElementById("reset-confirm-input").value = "";
+    document.getElementById("reset-modal").classList.add("open");
+  }
+  function closeResetModal() {
+    document.getElementById("reset-modal").classList.remove("open");
+  }
+
+  async function confirmResetCounter() {
+    const val = document.getElementById("reset-confirm-input").value.trim();
+    if (val !== "RESET") {
+      showToast('Type "RESET" exactly to confirm.');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/or-counter/reset`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${TOKEN}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Reset failed");
+      showToast(data.message);
+      closeResetModal();
+      await loadOrCounter();
+    } catch (err) {
+      showToast(err.message);
+    }
+  }
+
+  function showToast(msg) {
+    const toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 3000);
+  }
+
+  document.getElementById("reset-modal").addEventListener("click", e => {
+    if (e.target.id === "reset-modal") closeResetModal();
+  });
+
   loadStats();
+  loadOrCounter();
 </script>
 </body>
 </html>

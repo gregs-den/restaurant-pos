@@ -269,3 +269,17 @@ export async function updateTable(req: AuthRequest, res: Response) {
     res.status(400).json({ error: err.message })
   }
 }
+
+export async function resetOrCounter(req: AuthRequest, res: Response) {
+  try {
+    await orderService.resetOrCounter()
+    res.json({ message: "OR counter reset to 0. The next paid order will be OR-00000001." })
+  } catch (err: any) {
+    res.status(400).json({ error: err.message })
+  }
+}
+
+export async function getOrCounterStatus(req: AuthRequest, res: Response) {
+  const status = await orderService.getOrCounterStatus()
+  res.json(status)
+}

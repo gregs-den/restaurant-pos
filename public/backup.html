@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Backup & Export</title>
+<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/css/nav.css">
+<style>
+  .header-right { display: flex; gap: 8px; align-items: center; }
+
+  .main { padding: 24px; max-width: 720px; margin: 0 auto; }
+
+  .btn {
+    padding: 8px 16px; border-radius: 5px; border: none;
+    font-size: 13px; cursor: pointer; font-family: var(--font-body); font-weight: 600;
+  }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-accent:hover { background: var(--accent-dark); }
+  .btn-ghost { background: #2a3336; color: #eee; }
+  .btn-ghost:hover { background: #333d41; }
+  .btn-lg { padding: 14px 28px; font-size: 15px; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 28px; margin-bottom: 20px;
+  }
+  .card h2 { margin: 0 0 8px; font-size: 17px; }
+  .card p { color: var(--muted); font-size: 13px; line-height: 1.6; margin-bottom: 20px; }
+
+  .warning-card {
+    background: #3a2a1f; border: 1px solid var(--warn, #e0a72e); border-radius: 10px;
+    padding: 16px 20px; margin-bottom: 20px; display: flex; gap: 12px; align-items: flex-start;
+  }
+  .warning-card .icon { font-size: 20px; }
+  .warning-card .text { font-size: 13px; color: #f2c978; line-height: 1.6; }
+  .warning-card .text strong { color: #fff; }
+  .warning-card a { color: #f2c978; }
+
+  .last-backup {
+    display: flex; justify-content: space-between; align-items: center;
+    background: #1a2022; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; font-size: 13px;
+  }
+  .last-backup .label { color: var(--muted); }
+  .last-backup .value { font-family: var(--font-display); color: var(--accent); }
+
+  .counts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-top: 16px; }
+  .count-chip { background: #1a2022; border-radius: 6px; padding: 10px 12px; text-align: center; }
+  .count-chip .num { font-family: var(--font-display); font-size: 18px; font-weight: bold; color: var(--accent); }
+  .count-chip .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; }
+
+  .progress-text { text-align: center; font-size: 13px; color: var(--muted); margin-top: 12px; display: none; }
+  .progress-text.show { display: block; }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--accent-dark, #1f6e47); color: #fff; padding: 10px 20px; border-radius: 6px;
+    font-size: 13px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 400;
+  }
+  .toast.show { opacity: 1; }
+
+  code {
+    background: #1a2022; padding: 2px 6px; border-radius: 4px; font-family: var(--font-display); font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>💾 Backup & Export</h1>
+  <div class="header-right">
+    <div id="nav-container"></div>
+    <button class="btn btn-ghost" onclick="logout()">Logout</button>
+  </div>
+</header>
+
+<div class="main">
+  <div class="warning-card">
+    <div class="icon">⚠️</div>
+    <div class="text">
+      <strong>Supabase's free tier does not include automated backups.</strong> If your database is lost or corrupted, there's no built-in recovery. Download a backup regularly — especially before major changes — and store it somewhere safe (Google Drive, email to yourself, etc.).
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Full Database Export</h2>
+    <p>Downloads every record in your system — menu, orders, payments, users (no passwords), inventory, reservations, void logs, and shifts — as a single JSON file with a timestamp.</p>
+
+    <div class="last-backup">
+      <span class="label">Last downloaded this session</span>
+      <span class="value" id="last-backup-time">Never</span>
+    </div>
+
+    <button class="btn btn-accent btn-lg" id="download-btn" onclick="downloadBackup()" style="width:100%">
+      ⬇️ Download Full Backup (JSON)
+    </button>
+    <div class="progress-text" id="progress-text">Gathering your data…</div>
+
+    <div class="counts-grid" id="counts-grid"></div>
+  </div>
+
+  <div class="card">
+    <h2>Advanced: True Database-Level Backup</h2>
+    <p>
+      The JSON export above covers your application data, but for a complete Postgres-level backup (schema, indexes, everything),
+      use Supabase's CLI from your computer:
+    </p>
+    <p style="margin-bottom:6px"><code>npx supabase db dump --db-url "YOUR_CONNECTION_STRING" -f backup.sql</code></p>
+    <p>This creates a full SQL dump you can restore anytime, even if your Supabase project itself is deleted. Consider scheduling this weekly.</p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/js/nav.js"></script>
+<script>
+  const API_BASE = window.location.origin;
+  const TOKEN = localStorage.getItem("pos_token");
+  if (!TOKEN) window.location.href = "/";
+  const ROLE = localStorage.getItem("pos_role");
+
+  if (ROLE !== "ADMIN") {
+    document.querySelector(".main").innerHTML = `<div class="card"><h2>Admin Only</h2><p>This page is only available to Admin accounts.</p></div>`;
+  }
+
+  function logout() {
+    localStorage.removeItem("pos_token");
+    localStorage.removeItem("pos_role");
+    localStorage.removeItem("pos_user");
+    window.location.href = "/index.html";
+  }
+
+  async function downloadBackup() {
+    if (ROLE !== "ADMIN") return;
+
+    const btn = document.getElementById("download-btn");
+    const progress = document.getElementById("progress-text");
+    btn.disabled = true;
+    progress.classList.add("show");
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/export-backup`, {
+        headers: { Authorization: `Bearer ${TOKEN}` }
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Export failed");
+      }
+      const backup = await res.json();
+
+      // Trigger download
+      const json = JSON.stringify(backup, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const dateStamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      a.href = url;
+      a.download = `restaurant-pos-backup-${dateStamp}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      document.getElementById("last-backup-time").textContent = new Date().toLocaleString("en-PH");
+      renderCounts(backup);
+      showToast("Backup downloaded successfully.");
+    } catch (err) {
+      showToast(err.message);
+    } finally {
+      btn.disabled = false;
+      progress.classList.remove("show");
+    }
+  }
+
+  function renderCounts(backup) {
+    const data = backup.data;
+    const tables = [
+      ["Users", data.users?.length],
+      ["Orders", data.orders?.length],
+      ["Order Items", data.orderItems?.length],
+      ["Payments", data.payments?.length],
+      ["Menu Items", data.menuItems?.length],
+      ["Categories", data.categories?.length],
+      ["Tables", data.tables?.length],
+      ["Promos", data.promos?.length],
+      ["Ingredients", data.ingredients?.length],
+      ["Reservations", data.reservations?.length],
+      ["Void Logs", data.voidLogs?.length],
+      ["Shifts", data.shifts?.length],
+    ];
+    document.getElementById("counts-grid").innerHTML = tables.map(([label, count]) => `
+      <div class="count-chip">
+        <div class="num">${count ?? 0}</div>
+        <div class="lbl">${label}</div>
+      </div>
+    `).join("");
+  }
+
+  function showToast(msg) {
+    const toast = document.getElementById("toast");
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 3000);
+  }
+</script>
+</body>
+</html>
