@@ -90,6 +90,11 @@
   .table-chip.RESERVED { background: #2a2a3a; color: #9b9ef7; border-color: #4a4a6b; }
   .table-chip.BILLING { background: #3a1f1f; color: #eb5757; border-color: #6b2d2d; }
   .table-chip .table-status { font-size: 9px; font-family: var(--font-body); margin-top: 3px; opacity: 0.8; }
+  .table-chip.has-conflict { outline: 2px solid #ff8080; animation: pulse-conflict 1.5s infinite; }
+  @keyframes pulse-conflict {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.65; }
+  }
 
   /* ---- Top items ---- */
   .top-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
@@ -366,11 +371,11 @@
       allTables = tables;
       document.getElementById("tables-grid").innerHTML = tables.map(t => {
         const status = t.effectiveStatus || t.status;
-        const hasReservation = status === "RESERVED" && t.activeReservation;
+        const hasReservation = (status === "RESERVED" || t.hasConflict) && t.activeReservation;
         return `
-        <div class="table-chip ${status}" ${hasReservation ? `onclick="showReservationInfo('${t.id}')" style="cursor:pointer"` : ''}>
+        <div class="table-chip ${status} ${t.hasConflict ? 'has-conflict' : ''}" ${hasReservation ? `onclick="showReservationInfo('${t.id}')" style="cursor:pointer"` : ''}>
           ${escapeHtml(t.tableNumber)}
-          <div class="table-status">${status.toLowerCase()}</div>
+          <div class="table-status">${t.hasConflict ? '⚠️ res. due' : status.toLowerCase()}</div>
         </div>
       `;
       }).join("");

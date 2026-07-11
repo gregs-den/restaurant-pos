@@ -46,6 +46,15 @@
     display: block; font-size: 10px; background: #2a2a3a; color: #9b9ef7;
     padding: 3px 8px; border-radius: 6px; margin-bottom: 8px;
   }
+  .conflict-badge {
+    display: block; font-size: 10px; background: #3a1f1f; color: #ff8080;
+    padding: 3px 8px; border-radius: 6px; margin-bottom: 8px; font-weight: 600;
+    animation: pulse-conflict 1.5s infinite;
+  }
+  @keyframes pulse-conflict {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
 
   .table-actions { display: flex; gap: 6px; flex-wrap: wrap; }
   .btn {
@@ -228,7 +237,7 @@
       const parentTable = isMergedChild ? tables.find(x => x.id === t.mergedWithTableId) : null;
       const childTables = tables.filter(x => x.mergedWithTableId === t.id);
       const status = t.effectiveStatus || t.status;
-      const hasReservation = status === "RESERVED" && t.activeReservation;
+      const hasReservation = (status === "RESERVED" || t.hasConflict) && t.activeReservation;
 
       return `
       <div class="table-card ${status} ${isMergedChild ? 'is-merged-child' : ''}" ${hasReservation ? `onclick="showReservationInfo('${t.id}')" style="cursor:pointer"` : ''}>
@@ -236,6 +245,7 @@
         <div class="table-meta">👥 Seats ${t.capacity}${t.floorSection ? ` · ${escapeHtml(t.floorSection)}` : ""}</div>
         ${isMergedChild ? `<div class="merge-badge">🔗 Merged into ${escapeHtml(parentTable ? parentTable.tableNumber : '?')}</div>` : ""}
         ${childTables.length > 0 ? `<div class="merge-badge">🔗 Combined with ${childTables.map(c => escapeHtml(c.tableNumber)).join(", ")}</div>` : ""}
+        ${t.hasConflict ? `<div class="conflict-badge">⚠️ Reservation due — table not free</div>` : ""}
         <span class="table-status-badge badge-${status}">${status}</span>
         ${hasReservation ? `<div style="font-size:11px;color:#9b9ef7;margin-bottom:8px">👤 ${escapeHtml(t.activeReservation.guestName)} · tap for info</div>` : ""}
         <select class="status-select-sm" onchange="quickStatusChange('${t.id}', this.value)" ${isMergedChild ? 'disabled title="Managed via primary table"' : ''} onclick="event.stopPropagation()">

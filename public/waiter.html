@@ -56,6 +56,11 @@
   .table-btn.BILLING { background: #3a1f1f; color: #eb5757; border-color: #6b2d2d; }
   .table-btn .t-status { font-size: 10px; font-family: var(--font-body); margin-top: 4px; opacity: 0.8; font-weight: 400; }
   .table-btn.selected { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .table-btn.has-conflict { outline: 2px solid #ff8080; animation: pulse-conflict 1.5s infinite; }
+  @keyframes pulse-conflict {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.65; }
+  }
 
   /* ---- Order type selector ---- */
   .order-type-row { display: flex; gap: 8px; margin-bottom: 16px; }
@@ -356,12 +361,12 @@
         ? `${t.tableNumber} + ${children.map(c => c.tableNumber).join("+")}`
         : t.tableNumber;
       const status = t.effectiveStatus || t.status;
-      const hasReservation = status === "RESERVED" && t.activeReservation;
+      const hasReservation = (status === "RESERVED" || t.hasConflict) && t.activeReservation;
       return `
-      <div class="table-btn ${status} ${t.id === selectedTableId ? 'selected' : ''}"
+      <div class="table-btn ${status} ${t.id === selectedTableId ? 'selected' : ''} ${t.hasConflict ? 'has-conflict' : ''}"
         onclick="${hasReservation ? `showReservationInfo('${t.id}')` : `selectTable('${t.id}', '${escapeHtml(label)}')`}">
         ${escapeHtml(label)}
-        <div class="t-status">${status.toLowerCase()}${children.length > 0 ? ' · combined' : ''}${hasReservation ? ' · tap for info' : ''}</div>
+        <div class="t-status">${t.hasConflict ? '⚠️ reservation due' : status.toLowerCase()}${children.length > 0 ? ' · combined' : ''}${(status === "RESERVED" && !t.hasConflict) ? ' · tap for info' : ''}</div>
       </div>
     `;
     }).join("");

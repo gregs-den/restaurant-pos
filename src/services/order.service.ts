@@ -162,11 +162,12 @@ export async function calculateBill(orderId: string) {
     .reduce((sum, item) => sum + Number(item.subtotal), 0)
 
   const discountAmount = Number(order.discountAmount || 0)
-  const taxableAmount = subtotal - discountAmount
-  const taxAmount = taxableAmount * VAT_RATE
-  const totalAmount = taxableAmount + taxAmount
+  const netGross = subtotal - discountAmount
+  const vatableSales = netGross / 1.12
+  const taxAmount = netGross - vatableSales
+  const totalAmount = netGross
 
-  return prisma.order.update({
+  const updatedOrder = await prisma.order.update({
     where: { id: orderId },
     data: {
       subtotal,
@@ -175,6 +176,16 @@ export async function calculateBill(orderId: string) {
     },
     include: { orderItems: { include: { menuItem: true } }, table: true },
   })
+
+  // Table is now being billed — flip its status so staff see it clearly
+  if (updatedOrder.tableId) {
+    await prisma.table.update({
+      where: { id: updatedOrder.tableId },
+      data: { status: "BILLING" },
+    })
+  }
+
+  return updatedOrder
 }
 
 export async function applyDiscount(orderId: string, discountAmount: number) {
@@ -624,13 +635,18 @@ async function attachReservationInfo(tables: any[]) {
 
   return tables.map(t => {
     const reservation = reservationByTable[t.id]
-    const isFreeToShowReserved = t.status === "AVAILABLE" // don't override Occupied/Billing
+    const isFreeToShowReserved = t.status === "AVAILABLE"
+    const isBusy = t.status === "OCCUPIED" || t.status === "BILLING"
     const effectiveStatus = (reservation && isFreeToShowReserved) ? "RESERVED" : t.status
+
+    // Conflict: a reservation is due soon/now but the table isn't free yet
+    const hasConflict = !!(reservation && isBusy)
 
     return {
       ...t,
       effectiveStatus,
-      activeReservation: (reservation && isFreeToShowReserved) ? {
+      hasConflict,
+      activeReservation: reservation ? {
         id: reservation.id,
         guestName: reservation.guestName,
         guestPhone: reservation.guestPhone,
