@@ -283,3 +283,19 @@ export async function getOrCounterStatus(req: AuthRequest, res: Response) {
   const status = await orderService.getOrCounterStatus()
   res.json(status)
 }
+
+export async function createFullOrder(req: AuthRequest, res: Response) {
+  try {
+    const order = await orderService.createFullOrder({
+      ...req.body,
+      userId: req.user!.userId,
+    })
+
+    const io = req.app.get("io")
+    io.to("kitchen").emit("new-order", order)
+
+    res.status(201).json(order)
+  } catch (err: any) {
+    res.status(400).json({ error: err.message })
+  }
+}

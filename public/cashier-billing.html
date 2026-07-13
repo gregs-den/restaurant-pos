@@ -235,6 +235,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="/js/nav.js"></script>
+<script src="/js/offline-queue.js"></script>
 
 <script>
   
@@ -486,17 +487,26 @@
       return;
     }
     try {
-      const result = await api(`/orders/${currentOrderId}/payments`, {
+      const result = await offlineFetch(`/orders/${currentOrderId}/payments`, {
         method: "POST",
         body: JSON.stringify({
           method: selectedMethod,
           amount,
           referenceNo: refInput.value || undefined
         })
-      });
+      }, { queueable: true, label: `Payment — ${selectedMethod} ₱${amount.toFixed(2)}` });
+
+      if (result.queued) {
+        showToast("No connection — payment saved and will process automatically once back online.");
+        // Optimistically clear the amount field; cashier can note cash was received manually
+        amountInput.value = "";
+        return;
+      }
+
       await refreshReceipt();
-      if (result.change > 0) {
-        showToast(`Payment recorded. Change: ₱${result.change.toFixed(2)}`);
+      const data = result.data;
+      if (data.change > 0) {
+        showToast(`Payment recorded. Change: ₱${data.change.toFixed(2)}`);
       } else {
         showToast("Payment recorded.");
       }
@@ -550,7 +560,7 @@
       showToast(`${type} discount applied — ₱${result.discountAmount.toFixed(2)} off`);
     } catch (err) { showToast(err.message); }
   }
-  
+
   // ---- Void ----
   function openVoidModal(type, id, name, qty, amount) {
     voidTarget = { type, id, name, qty, amount };

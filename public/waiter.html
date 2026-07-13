@@ -291,6 +291,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="/js/nav.js"></script>
+<script src="/js/offline-queue.js"></script>
 
 <script>
 
@@ -618,12 +619,24 @@
     btn.disabled = true;
     btn.textContent = "Sending…";
 
+    // Snapshot cart/table info in case we go offline and need to queue
+    const cartSnapshot = cart.map(item => ({
+      menuItemId: item.menuItemId,
+      quantity: item.quantity,
+      notes: item.notes || undefined,
+      components: item.components || undefined,
+    }));
+    const tableIdSnapshot = selectedType === "DINE_IN" ? selectedTableId : undefined;
+    const orderTypeSnapshot = selectedType;
+
     try {
       let order = null;
+      let usedOfflineFallback = false;
 
       // For dine-in, check if this table already has an active, unpaid order —
       // if so, add these items to it instead of creating a separate bill.
-      if (selectedType === "DINE_IN" && selectedTableId) {
+      // (Only attempted when online — this lookup itself needs connectivity.)
+      if (navigator.onLine && selectedType === "DINE_IN" && selectedTableId) {
         try {
           const activeOrders = await api("/kitchen/orders");
           order = activeOrders.find(o =>
@@ -631,32 +644,31 @@
             o.paymentStatus !== "PAID"
           ) || null;
         } catch (e) {
-          order = null; // fall through to creating a new order
+          order = null;
         }
       }
 
-      // No existing order found — create a new one
-      if (!order) {
-        order = await api("/orders", {
+      if (order) {
+        // Existing order found — add items to it individually (online path only)
+        for (const item of cartSnapshot) {
+          await api(`/orders/${order.id}/items`, {
+            method: "POST",
+            body: JSON.stringify(item)
+          });
+        }
+      } else {
+        // No existing order (or offline) — use the combined endpoint.
+        // If offline, this gets queued automatically and synced later.
+        const result = await offlineFetch("/orders/full", {
           method: "POST",
           body: JSON.stringify({
-            tableId: selectedType === "DINE_IN" ? selectedTableId : undefined,
-            orderType: selectedType,
+            tableId: tableIdSnapshot,
+            orderType: orderTypeSnapshot,
+            items: cartSnapshot,
           })
-        });
-      }
+        }, { queueable: true, label: `Order — ${tableIdSnapshot ? "Table" : orderTypeSnapshot}` });
 
-      // Add items one by one
-      for (const item of cart) {
-        await api(`/orders/${order.id}/items`, {
-          method: "POST",
-          body: JSON.stringify({
-            menuItemId: item.menuItemId,
-            quantity: item.quantity,
-            notes: item.notes || undefined,
-            components: item.components || undefined,
-          })
-        });
+        usedOfflineFallback = result.queued;
       }
 
       // Reset
@@ -665,11 +677,17 @@
       selectedTableLabel = null;
       updateCartCount();
 
-      // Refresh tables
-      tables = await api("/tables/with-merge-info");
-      renderTables();
+      if (usedOfflineFallback) {
+        showToast("No connection — order saved and will send automatically once back online.", "success");
+      } else {
+        // Refresh tables (only meaningful if online)
+        try {
+          tables = await api("/tables/with-merge-info");
+          renderTables();
+        } catch (e) {}
+        showToast("Order sent to kitchen! 🔥", "success");
+      }
 
-      showToast("Order sent to kitchen! 🔥", "success");
       goTo("tables");
 
     } catch (err) {

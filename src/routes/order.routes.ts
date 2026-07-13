@@ -26,6 +26,7 @@ router.post("/orders", authenticate, orderController.createOrder)
 router.post("/order-items/:id/void", authenticate, orderController.voidOrderItem)
 router.post("/orders/:id/void", authenticate, orderController.voidOrder)
 router.get("/void-logs", authenticate, requireRole("ADMIN", "MANAGER"), orderController.getVoidLogs)
+router.post("/orders/full", authenticate, orderController.createFullOrder)
 router.get("/orders/:id", authenticate, orderController.getOrder)
 router.patch("/orders/:id/status", authenticate, orderController.updateOrderStatus)
 

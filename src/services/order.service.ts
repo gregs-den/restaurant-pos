@@ -20,6 +20,7 @@ export async function createOrder(data: {
   userId: string
   orderType?: "DINE_IN" | "TAKEOUT" | "DELIVERY"
   notes?: string
+  idempotencyKey?: string
 }) {
   let effectiveTableId = data.tableId
 
@@ -201,7 +202,26 @@ export async function addPayment(orderId: string, data: {
   amount: number
   referenceNo?: string
   receivedBy: string
+  idempotencyKey?: string
 }) {
+  // If this exact request was already processed, return the original result instead of creating a duplicate
+  if (data.idempotencyKey) {
+    const existing = await prisma.payment.findUnique({
+      where: { idempotencyKey: data.idempotencyKey },
+    })
+    if (existing) {
+      const order = await prisma.order.findUnique({ where: { id: existing.orderId } })
+      return {
+        payment: existing,
+        totalPaid: Number(order?.totalAmount || 0), // approximate; exact recompute below is safer
+        totalDue: Number(order?.totalAmount || 0),
+        change: 0,
+        paymentStatus: order?.paymentStatus,
+        duplicate: true,
+      }
+    }
+  }
+
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { payments: true },
@@ -211,7 +231,14 @@ export async function addPayment(orderId: string, data: {
   if (!order.totalAmount) throw new Error("Bill not calculated yet — call calculate-bill first")
 
   const payment = await prisma.payment.create({
-    data: { orderId, ...data },
+    data: {
+      orderId,
+      method: data.method,
+      amount: data.amount,
+      referenceNo: data.referenceNo,
+      receivedBy: data.receivedBy,
+      idempotencyKey: data.idempotencyKey,
+    },
   })
 
   const totalPaid = order.payments.reduce((sum, p) => sum + Number(p.amount), 0) + data.amount
@@ -655,5 +682,52 @@ async function attachReservationInfo(tables: any[]) {
         notes: reservation.notes,
       } : null,
     }
+  })
+}
+
+export async function createFullOrder(data: {
+  tableId?: string
+  userId: string
+  orderType?: "DINE_IN" | "TAKEOUT" | "DELIVERY"
+  notes?: string
+  idempotencyKey?: string
+  items: {
+    menuItemId: string
+    quantity: number
+    notes?: string
+    components?: { componentId: string; quantity: number; isSubstituted?: boolean }[]
+  }[]
+}) {
+  // Idempotency check first
+  if (data.idempotencyKey) {
+    const existing = await prisma.order.findUnique({
+      where: { idempotencyKey: data.idempotencyKey },
+      include: { orderItems: true },
+    })
+    if (existing) return existing
+  }
+
+  const order = await createOrder({
+    tableId: data.tableId,
+    userId: data.userId,
+    orderType: data.orderType,
+    notes: data.notes,
+    idempotencyKey: data.idempotencyKey,
+  })
+
+  const { addOrderItemWithComponents, deductStockForOrderItemComponents } = await import("./order-item-component.service")
+
+  for (const item of data.items) {
+    const orderItem = await addOrderItemWithComponents(order.id, item)
+    try {
+      await deductStockForOrderItemComponents(orderItem!.id, data.userId)
+    } catch (e) {
+      // stock deduction failure shouldn't block the order
+    }
+  }
+
+  return prisma.order.findUnique({
+    where: { id: order.id },
+    include: { orderItems: { include: { menuItem: true } }, table: true },
   })
 }

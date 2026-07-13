@@ -194,6 +194,7 @@ model Order {
   status        OrderStatus @default(PENDING)
   notes         String?
   orNumber Int? @unique @map("or_number")
+  idempotencyKey String? @unique @map("idempotency_key")
 
   // Billing fields
   subtotal      Decimal?    @db.Decimal(10, 2)
@@ -256,11 +257,11 @@ model Payment {
   orderId       String        @map("order_id")
   method        PaymentMethod
   amount        Decimal       @db.Decimal(10, 2)
-  referenceNo   String?       @map("reference_no") // for card/gcash transaction reference
-  receivedBy    String        @map("received_by")  // userId of cashier
+  referenceNo   String?       @map("reference_no")
+  receivedBy    String        @map("received_by")
+  idempotencyKey String?      @unique @map("idempotency_key")
   createdAt     DateTime      @default(now()) @map("created_at")
 
-  // Relations
   order         Order         @relation(fields: [orderId], references: [id])
 
   @@map("payments")
